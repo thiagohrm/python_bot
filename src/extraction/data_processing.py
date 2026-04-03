@@ -5,7 +5,7 @@ Data processing utilities for creating and manipulating pandas DataFrames.
 import pandas as pd
 from typing import List, Dict, Any
 
-from config import EXPECTED_COLUMNS
+from src.config import EXPECTED_COLUMNS
 
 
 def create_products_dataframe(table_data: List[Dict[str, Any]]) -> pd.DataFrame:

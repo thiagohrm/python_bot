@@ -5,7 +5,7 @@ services:
     container_name: python_bot_app
     volumes:
       - .:/app
-    command: python main.py
+    command: python src/main.py
     environment:
       - PYTHONUNBUFFERED=1
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
