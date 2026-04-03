@@ -59,7 +59,8 @@ jobs:
     # Post results to PR
     - name: Comment PR with build report
       if: github.event_name == 'pull_request'
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
+      continue-on-error: true
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -89,12 +90,16 @@ jobs:
           comment += `- **Tests**: ${{ steps.tests.outcome }} 🧪\n`;
           
           // Post comment
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: comment
-          });
+          try {
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          } catch (error) {
+            console.error('Failed to post comment:', error);
+          }
     
     - name: Upload coverage reports
       if: always()
