@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 os.environ['TELEGRAM_BOT_TOKEN'] = 'dummy_token_for_testing'
 
 # Import modules directly
-from data_extraction import extract_div_data, extract_table_data
+from data_extraction import extract_div_data, extract_table_data, extract_total_data, extract_emission_info
 from data_processing import create_products_dataframe
 from web_scraping import is_url, fetch_webpage_title, fetch_webpage_title_from_html
 from bot_handlers import start, get_dataframe, handle_photo
@@ -426,3 +426,82 @@ def test_create_products_dataframe_empty():
     """Test creating DataFrame from empty data."""
     df = create_products_dataframe([])
     assert df.empty
+
+
+def test_extract_total_data_success():
+    """Test extracting total payment data from HTML."""
+    html_content = '''
+    <div id="totalNota" class="txtRight">
+      <div id="linhaTotal">
+        <label>Qtd. total de itens:</label>
+        <span class="totalNumb">1</span>
+      </div>
+      <div id="linhaTotal" class="linhaShade">
+        <label>Valor a pagar R$:</label>
+        <span class="totalNumb txtMax">5,79</span>
+      </div>
+      <div id="linhaForma">
+        <label>Forma de pagamento:</label>
+        <span class="totalNumb txtTitR">Valor pago R$:</span>
+      </div>
+      <div id="linhaTotal">
+        <label class="tx">
+            Cartão de Crédito
+        </label>
+        <span class="totalNumb">5,79</span>
+      </div>
+      <div id="linhaTotal">
+        <label class="tx">Troco </label>
+        <span class="totalNumb">0,00</span>
+      </div>
+    </div>
+    '''
+    result = extract_total_data(html_content)
+    assert result['total_items'] == 1
+    assert result['amount_to_pay'] == 5.79
+    assert result['payment_method'] == 'Cartão de Crédito'
+    assert result['amount_paid'] == 5.79
+    assert result['change'] == 0.00
+
+
+def test_extract_total_data_no_div():
+    """Test extracting total data when div is not found."""
+    html_content = '<div id="other"><p>Test</p></div>'
+    result = extract_total_data(html_content)
+    assert result == {}
+
+
+def test_extract_emission_info_success():
+    """Test extracting emission information from HTML."""
+    html_content = '''
+    <div id="infos" class="txtCenter">
+      <div data-role="collapsible" data-collapsed-icon="carat-d" data-expanded-icon="carat-u" data-collapsed="false">
+        <h4>Informações gerais da Nota</h4>
+        <ul data-role="listview" data-inset="false">
+          <li>
+            <strong>EMISSÃO NORMAL</strong>
+            <br>
+            <br>
+            <strong>Número: </strong>28725<strong> Série: </strong>54<strong> Emissão: </strong>29/03/2026 11:09:00
+            - Via Consumidor
+            <br><br><strong>Protocolo de Autorização: </strong>135262105954781       29/03/2026 11:09:33<br><br><strong>
+              Ambiente de Produção -
+              Versão XML:
+              4.00
+              - Versão XSLT: 2.05
+            </strong></li>
+        </ul>
+      </div>
+    </div>
+    '''
+    result = extract_emission_info(html_content)
+    assert result['emission_date'] == '29/03/2026 11:09:00'
+    assert result['authorization_protocol'] == '135262105954781'
+    assert result['environment'] == 'Produção'
+
+
+def test_extract_emission_info_no_div():
+    """Test extracting emission info when div is not found."""
+    html_content = '<div id="other"><p>Test</p></div>'
+    result = extract_emission_info(html_content)
+    assert result == {}

@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 
 from config import DEFAULT_HEADERS, REQUEST_TIMEOUT
 from web_scraping import is_url, fetch_webpage_title_from_html
-from data_extraction import extract_table_data
+from data_extraction import extract_table_data, extract_total_data, extract_emission_info
 from data_processing import create_products_dataframe, format_dataframe_for_display
 
 
@@ -59,18 +59,46 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Fetch webpage content for both display and data extraction
                     response = requests.get(qr_data, headers=DEFAULT_HEADERS, timeout=REQUEST_TIMEOUT)
                     response.raise_for_status()
-                    html_content = response.content
+                    html_content = response.content.decode('utf-8')
 
                     # Extract webpage info for display
                     webpage_info = await fetch_webpage_title_from_html(html_content, qr_data)
                     await update.message.reply_text(webpage_info)
 
                     # Extract table data and create DataFrame
-                    table_data = extract_table_data(str(html_content))
+                    table_data = extract_table_data(html_content)
                     if table_data:
                         df = create_products_dataframe(table_data)
                         context.user_data['products_df'] = df
                         await update.message.reply_text("💾 Products data stored! Use /dataframe to view it.")
+
+                        # Extract and display total payment information
+                        total_data = extract_total_data(html_content)
+                        if total_data:
+                            total_msg = "💰 Payment Summary:\n"
+                            if 'total_items' in total_data:
+                                total_msg += f"📦 Total Items: {total_data['total_items']}\n"
+                            if 'amount_to_pay' in total_data:
+                                total_msg += f"💵 Amount to Pay: R$ {total_data['amount_to_pay']:.2f}\n"
+                            if 'payment_method' in total_data:
+                                total_msg += f"💳 Payment Method: {total_data['payment_method']}\n"
+                            if 'amount_paid' in total_data:
+                                total_msg += f"✅ Amount Paid: R$ {total_data['amount_paid']:.2f}\n"
+                            if 'change' in total_data:
+                                total_msg += f"🪙 Change: R$ {total_data['change']:.2f}\n"
+                            await update.message.reply_text(total_msg)
+
+                        # Extract and display emission information
+                        emission_info = extract_emission_info(html_content)
+                        if emission_info:
+                            info_msg = "📄 Nota Information:\n"
+                            if 'emission_date' in emission_info:
+                                info_msg += f"📅 Emission Date: {emission_info['emission_date']}\n"
+                            if 'authorization_protocol' in emission_info:
+                                info_msg += f"🔐 Authorization Protocol: {emission_info['authorization_protocol']}\n"
+                            if 'environment' in emission_info:
+                                info_msg += f"🌐 Environment: {emission_info['environment']}\n"
+                            await update.message.reply_text(info_msg)
                 else:
                     await update.message.reply_text(f"QR Code found: {qr_data}")
         else:

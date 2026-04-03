@@ -246,6 +246,63 @@ from data_extraction import extract_div_data
 # 📍 RUA PRINCIPAL, 1000, SAO PAULO, SP
 ```
 
+### `extract_total_data(html_content, div_id="totalNota")`
+Extracts payment summary data from the totalNota div element.
+
+**Parameters:**
+- `html_content` (str): The HTML content to parse
+- `div_id` (str): The ID of the div element to extract (default: "totalNota")
+
+**Returns:**
+- dict: Dictionary containing payment data with keys like 'total_items', 'amount_to_pay', 'payment_method', 'amount_paid', 'change'
+
+**Example:**
+```python
+from data_extraction import extract_total_data
+
+result = extract_total_data(html_content)
+print(result)
+# {'total_items': 1, 'amount_to_pay': 5.79, 'payment_method': 'Cartão de Crédito', 'amount_paid': 5.79, 'change': 0.0}
+```
+
+### `extract_emission_info(html_content, div_id="infos")`
+Extracts emission date and authorization information from the infos div element.
+
+**Parameters:**
+- `html_content` (str): The HTML content to parse
+- `div_id` (str): The ID of the div element to extract (default: "infos")
+
+**Returns:**
+- dict: Dictionary containing emission data with keys like 'emission_date', 'authorization_protocol', 'environment'
+
+**Example:**
+```python
+from data_extraction import extract_emission_info
+
+result = extract_emission_info(html_content)
+print(result)
+# {'emission_date': '29/03/2026 11:09:00', 'authorization_protocol': '135262105954781', 'environment': 'Produção'}
+```
+
+### `extract_table_data(html_content, table_id="tabResult")`
+Extracts table data and returns as list of dictionaries for DataFrame creation.
+
+**Parameters:**
+- `html_content` (str): The HTML content to parse
+- `table_id` (str): The ID of the table element to extract (default: "tabResult")
+
+**Returns:**
+- list[dict]: List of product dictionaries with keys like 'Produto', 'Código', 'Qtde', 'UN', 'Vl_Unit', 'Vl_Total'
+
+**Example:**
+```python
+from data_extraction import extract_table_data
+
+products = extract_table_data(html_content)
+print(products[0])
+# {'Produto': 'CREME LEITE NESTLE TP 200G', 'Código': '12332', 'Qtde': 1, 'UN': 'UN0001', 'Vl_Unit': 5.79, 'Vl_Total': 5.79}
+```
+
 ### `is_url(text)`
 Validates if text is a valid URL.
 
@@ -296,7 +353,7 @@ python_bot/
 ├── bot_handlers.py                  # Telegram bot command and message handlers
 ├── __init__.py                      # Package initialization
 ├── tests/
-│   ├── test_main.py                # Comprehensive unit tests (20 tests)
+│   ├── test_main.py                # Comprehensive unit tests (24 tests)
 │   └── conftest.py                 # Pytest configuration and mocking
 ├── .github/
 │   └── workflows/
@@ -306,7 +363,9 @@ python_bot/
 ├── requirements.txt                # Python dependencies
 ├── README.md                        # This file
 ├── example_extract_div.py          # Example usage of div extraction
-└── example_extract_table.py        # Example usage of table extraction
+├── example_extract_table.py        # Example usage of table extraction
+├── example_extract_total.py        # Example usage of total payment data extraction
+└── example_extract_emission.py     # Example usage of emission info extraction
 ```
 
 ## Key Functions
@@ -317,6 +376,8 @@ python_bot/
 **data_extraction.py:**
 - `extract_div_data(html_content, div_id)` - HTML div data extraction
 - `extract_table_data(html_content, table_id)` - HTML table data extraction
+- `extract_total_data(html_content, div_id)` - Payment summary data extraction
+- `extract_emission_info(html_content, div_id)` - Emission date and authorization info extraction
 
 **data_processing.py:**
 - `create_products_dataframe(table_data)` - Create pandas DataFrame from table data
@@ -340,12 +401,13 @@ python_bot/
 The project includes comprehensive automated tests:
 
 **Test Coverage:**
-- ✅ 20 unit tests
+- ✅ 24 unit tests
 - ✅ All tests passing
 - ✅ Async handler testing
 - ✅ Edge case handling (missing divs, invalid URLs, network errors)
 - ✅ BeautifulSoup parsing validation
 - ✅ Table data extraction and DataFrame creation
+- ✅ Payment data extraction and emission info parsing
 
 **Test Categories:**
 - QR code detection and decoding
@@ -379,14 +441,38 @@ result = extract_div_data(html)
 print(result)
 ```
 
-### Example 2: QR Code in Bot
+### Example 2: Total Payment Data Extraction
+See [example_extract_total.py](example_extract_total.py) for full usage examples.
+
+```python
+from data_extraction import extract_total_data
+
+result = extract_total_data(html_content)
+print(f"Total Items: {result['total_items']}")
+print(f"Amount to Pay: R$ {result['amount_to_pay']:.2f}")
+print(f"Payment Method: {result['payment_method']}")
+```
+
+### Example 3: Emission Information Extraction
+See [example_extract_emission.py](example_extract_emission.py) for full usage examples.
+
+```python
+from data_extraction import extract_emission_info
+
+result = extract_emission_info(html_content)
+print(f"Emission Date: {result['emission_date']}")
+print(f"Authorization Protocol: {result['authorization_protocol']}")
+```
+
+### Example 4: QR Code in Bot
 1. Start bot: `/start`
 2. Send image with QR code
 3. Bot automatically:
    - Detects QR code
    - Extracts URL if present
    - Fetches webpage
-   - Extracts company information and displays formatted data
+   - Extracts company information, payment data, and emission details
+   - Displays all formatted data
 
 ## Dependencies
 
