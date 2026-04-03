@@ -6,10 +6,9 @@ import requests
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from config import DEFAULT_HEADERS, REQUEST_TIMEOUT
-from web_scraping import is_url, fetch_webpage_title_from_html
-from data_extraction import extract_table_data
-from data_processing import create_products_dataframe, format_dataframe_for_display
+from src.config import DEFAULT_HEADERS, REQUEST_TIMEOUT
+from src.scraping import is_url, fetch_webpage_title_from_html
+from src.extraction import extract_table_data, create_products_dataframe, format_dataframe_for_display
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -59,14 +58,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Fetch webpage content for both display and data extraction
                     response = requests.get(qr_data, headers=DEFAULT_HEADERS, timeout=REQUEST_TIMEOUT)
                     response.raise_for_status()
-                    html_content = response.content
+                    html_content = response.content.decode('utf-8')
 
                     # Extract webpage info for display
                     webpage_info = await fetch_webpage_title_from_html(html_content, qr_data)
                     await update.message.reply_text(webpage_info)
 
                     # Extract table data and create DataFrame
-                    table_data = extract_table_data(str(html_content))
+                    table_data = extract_table_data(html_content)
                     if table_data:
                         df = create_products_dataframe(table_data)
                         context.user_data['products_df'] = df

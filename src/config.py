@@ -22,17 +22,6 @@ def get_token():
         raise ValueError("Please set the TELEGRAM_BOT_TOKEN environment variable")
     return token
 
-# Bot configuration - lazy loading to avoid import-time errors
-def get_token():
-    """Get the Telegram bot token from environment variables."""
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
-    if not token:
-        raise ValueError("Please set the TELEGRAM_BOT_TOKEN environment variable")
-    return token
-
-# TOKEN is no longer defined at module level to avoid import-time evaluation
-# Use get_token() instead
-
 # HTTP headers for web requests
 DEFAULT_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'

@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from typing import Union
 
-from config import DEFAULT_HEADERS, REQUEST_TIMEOUT
-from data_extraction import extract_div_data, extract_table_data
+from src.config import DEFAULT_HEADERS, REQUEST_TIMEOUT
+from src.extraction import extract_div_data, extract_table_data
 
 
 def is_url(text: str) -> bool:
@@ -25,7 +25,7 @@ async def fetch_webpage_title(url: str) -> str:
     try:
         response = requests.get(url, headers=DEFAULT_HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
-        html_content = response.content
+        html_content = response.content.decode('utf-8')
 
         return await fetch_webpage_title_from_html(html_content, url)
     except requests.exceptions.Timeout:

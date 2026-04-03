@@ -1,10 +1,13 @@
 version: '3.9'
+
 services:
   app:
+    # Bot application service
     build: .
     container_name: python_bot_app
     volumes:
       - .:/app
+    # Entry point - runs main.py which delegates to src/main.py
     command: python main.py
     environment:
       - PYTHONUNBUFFERED=1

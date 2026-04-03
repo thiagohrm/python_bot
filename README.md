@@ -288,46 +288,54 @@ asyncio.run(main())
 
 ```
 python_bot/
-├── main.py                          # Application entry point
-├── config.py                        # Configuration constants and settings
-├── data_extraction.py               # HTML parsing and data extraction utilities
-├── data_processing.py               # DataFrame creation and formatting
-├── web_scraping.py                  # HTTP requests and webpage content extraction
-├── bot_handlers.py                  # Telegram bot command and message handlers
-├── __init__.py                      # Package initialization
+├── src/                          # Main application source code
+│   ├── __init__.py              # Package initialization
+│   ├── config.py                # Configuration constants and settings
+│   ├── main.py                  # Application entry point
+│   ├── extraction/              # Data extraction module
+│   │   ├── __init__.py
+│   │   ├── data_extraction.py   # HTML parsing and data extraction utilities
+│   │   └── data_processing.py   # DataFrame creation and formatting
+│   ├── scraping/                # Web scraping module
+│   │   ├── __init__.py
+│   │   └── web_scraping.py      # HTTP requests and webpage content extraction
+│   └── bot/                     # Telegram bot module
+│       ├── __init__.py
+│       └── handlers.py          # Telegram bot command and message handlers
 ├── tests/
-│   ├── test_main.py                # Comprehensive unit tests (20 tests)
-│   └── conftest.py                 # Pytest configuration and mocking
+│   ├── test_main.py            # Comprehensive unit tests (20 tests)
+│   └── conftest.py             # Pytest configuration and mocking
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yml               # GitHub Actions pipeline
-├── Dockerfile                       # Container configuration
-├── docker-compose.yml              # Docker Compose orchestration
-├── requirements.txt                # Python dependencies
-├── README.md                        # This file
-├── example_extract_div.py          # Example usage of div extraction
-└── example_extract_table.py        # Example usage of table extraction
+│       └── ci-cd.yml           # GitHub Actions pipeline
+├── main.py                      # Root entry point (redirects to src/main.py)
+├── __init__.py                  # Package initialization
+├── Dockerfile                   # Container configuration
+├── docker-compose.yml          # Docker Compose orchestration
+├── requirements.txt            # Python dependencies
+├── README.md                   # This file
+└── STRUCTURE.md                # Detailed architecture guide
 ```
 
 ## Key Functions
 
-**config.py:**
+**src/config.py:**
 - Configuration constants (TOKEN, DEFAULT_HEADERS, REQUEST_TIMEOUT, etc.)
 
-**data_extraction.py:**
+**src/extraction/data_extraction.py:**
 - `extract_div_data(html_content, div_id)` - HTML div data extraction
 - `extract_table_data(html_content, table_id)` - HTML table data extraction
 
-**data_processing.py:**
+**src/extraction/data_processing.py:**
 - `create_products_dataframe(table_data)` - Create pandas DataFrame from table data
 - `format_dataframe_for_display(df)` - Format DataFrame for Telegram display
 
-**web_scraping.py:**
+**src/scraping/web_scraping.py:**
 - `is_url(text)` - URL validation
 - `fetch_webpage_title(url)` - Async webpage fetching and parsing
 - `fetch_webpage_title_from_html(html_content)` - Extract data from HTML content
 
-**bot_handlers.py:**
+**src/bot/handlers.py:**
 - `start()` - Bot command handler for `/start`
 - `get_dataframe()` - Display stored products DataFrame
 - `handle_photo(update, context)` - Main QR code detection handler
@@ -359,34 +367,21 @@ Run tests locally:
 pytest -v --cov --cov-report=term-missing
 ```
 
-## Examples
+## Basic Usage
 
-### Example 1: HTML Div Extraction
-See [example_extract_div.py](example_extract_div.py) for full usage examples.
+### Running the Bot
+```bash
+# Set your Telegram bot token
+export TELEGRAM_BOT_TOKEN=your_token_here
 
-```python
-from data_extraction import extract_div_data
-
-html = """
-<div id="conteudo">
-  <div class="txtTopo">COMPANY NAME</div>
-  <div class="text">CNPJ: XX.XXX.XXX/0001-XX</div>
-  <div class="text">RUA STREET, 123, CITY, STATE</div>
-</div>
-"""
-
-result = extract_div_data(html)
-print(result)
+# Run the bot
+python main.py
 ```
 
-### Example 2: QR Code in Bot
-1. Start bot: `/start`
-2. Send image with QR code
-3. Bot automatically:
-   - Detects QR code
-   - Extracts URL if present
-   - Fetches webpage
-   - Extracts company information and displays formatted data
+### With Docker
+```bash
+docker-compose up
+```
 
 ## Dependencies
 

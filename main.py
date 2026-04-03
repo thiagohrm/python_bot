@@ -1,28 +1,14 @@
 """
 Telegram QR Code Bot - Main Application Entry Point
 
+This is the new entry point. The actual bot logic is in src/main.py
+
 A modular Telegram bot that decodes QR codes from images and extracts
 structured data from web pages including company information and product tables.
 """
 
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
-
-from config import get_token
-from bot_handlers import start, get_dataframe, handle_photo
-
-
-def main():
-    """Start the bot."""
-    application = ApplicationBuilder().token(get_token()).build()
-
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("dataframe", get_dataframe))
-    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-
-    # Start the bot
-    application.run_polling()
-
+from src.main import main  # noqa: F401
 
 if __name__ == '__main__':
     main()
+
