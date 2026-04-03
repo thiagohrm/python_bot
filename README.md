@@ -128,7 +128,7 @@ docker-compose up --build
 Notes:
 
 - Dockerfile installs libzbar0 for QR decoding support
-- Container runs python src/main.py
+- Container runs python -m src.main
 
 ## Testing
 
