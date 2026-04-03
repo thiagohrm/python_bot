@@ -1,0 +1,5 @@
+# Add Python dependencies here, e.g.
+# fastapi==0.111.0
+# requests==2.31.0
+pytest>=8.0.0
+pytest-cov>=4.0.0
