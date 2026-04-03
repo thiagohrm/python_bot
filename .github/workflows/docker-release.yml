@@ -3,7 +3,8 @@ name: Build and Publish Docker Image (Tag Release)
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,6 +17,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -44,14 +48,16 @@ jobs:
           images: ${{ steps.image.outputs.image }}
           tags: |
             type=ref,event=tag
+            type=raw,value=latest
             type=sha,prefix=sha-
 
-      - name: Build and push Docker image
+      - name: Build and push multi-platform image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
