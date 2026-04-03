@@ -6,10 +6,10 @@ import requests
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from config import DEFAULT_HEADERS, REQUEST_TIMEOUT
-from web_scraping import is_url, fetch_webpage_title_from_html
-from data_extraction import extract_table_data, extract_total_data, extract_emission_info
-from data_processing import create_products_dataframe, format_dataframe_for_display
+from src.config import DEFAULT_HEADERS, REQUEST_TIMEOUT
+from src.scraping.web_scraping import is_url, fetch_webpage_title_from_html
+from src.extraction.data_extraction import extract_table_data, extract_total_data, extract_emission_info
+from src.extraction.data_processing import create_products_dataframe, format_dataframe_for_display
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):

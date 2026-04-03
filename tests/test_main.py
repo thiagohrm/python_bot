@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Set a dummy token for testing
 os.environ['TELEGRAM_BOT_TOKEN'] = 'dummy_token_for_testing'
 
-# Import modules directly
-from data_extraction import extract_div_data, extract_table_data, extract_total_data, extract_emission_info
-from data_processing import create_products_dataframe
-from web_scraping import is_url, fetch_webpage_title, fetch_webpage_title_from_html
-from bot_handlers import start, get_dataframe, handle_photo
+# Import modules from src
+from src.extraction.data_extraction import extract_div_data, extract_table_data, extract_total_data, extract_emission_info
+from src.extraction.data_processing import create_products_dataframe
+from src.scraping.web_scraping import is_url, fetch_webpage_title, fetch_webpage_title_from_html
+from src.bot.handlers import start, get_dataframe, handle_photo
 
 
 @pytest.mark.asyncio
@@ -209,7 +209,7 @@ async def test_fetch_webpage_title_success():
     mock_response = MagicMock()
     mock_response.content = b'<html><head><title>Test Page</title><meta name="description" content="Test Description"></head><body><p>First paragraph text</p></body></html>'
     
-    with patch('web_scraping.requests.get', return_value=mock_response) as mock_get:
+    with patch('src.scraping.web_scraping.requests.get', return_value=mock_response) as mock_get:
         result = await fetch_webpage_title('https://example.com')
         
         mock_get.assert_called_once()
@@ -220,7 +220,7 @@ async def test_fetch_webpage_title_success():
 @pytest.mark.asyncio
 async def test_fetch_webpage_title_timeout():
     """Test handling of timeout error."""
-    with patch('web_scraping.requests.get', side_effect=requests.exceptions.Timeout()):
+    with patch('src.scraping.web_scraping.requests.get', side_effect=requests.exceptions.Timeout()):
         result = await fetch_webpage_title('https://example.com')
         
         assert 'timed out' in result.lower()
@@ -229,7 +229,7 @@ async def test_fetch_webpage_title_timeout():
 @pytest.mark.asyncio
 async def test_fetch_webpage_title_connection_error():
     """Test handling of connection error."""
-    with patch('web_scraping.requests.get', side_effect=requests.exceptions.ConnectionError()):
+    with patch('src.scraping.web_scraping.requests.get', side_effect=requests.exceptions.ConnectionError()):
         result = await fetch_webpage_title('https://example.com')
         
         assert 'could not connect' in result.lower()
@@ -257,8 +257,8 @@ async def test_handle_photo_with_url_in_qr():
     # Mock the image, decode, requests, and fetch functions
     with patch('PIL.Image.open') as mock_image_open, \
          patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]) as mock_decode, \
-         patch('web_scraping.requests.get') as mock_requests_get, \
-         patch('web_scraping.fetch_webpage_title_from_html', return_value='📄 Title: Test') as mock_fetch:
+         patch('src.scraping.web_scraping.requests.get') as mock_requests_get, \
+         patch('src.scraping.web_scraping.fetch_webpage_title_from_html', return_value='📄 Title: Test') as mock_fetch:
 
         mock_image = MagicMock()
         mock_image_open.return_value = mock_image
@@ -352,7 +352,7 @@ async def test_fetch_webpage_title_with_div_extraction():
     </html>
     '''
 
-    with patch('web_scraping.requests.get') as mock_get:
+    with patch('src.scraping.web_scraping.requests.get') as mock_get:
         mock_response = MagicMock()
         mock_response.content = html_content
         mock_response.raise_for_status = MagicMock()

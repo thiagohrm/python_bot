@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from typing import Union
 
-from config import DEFAULT_HEADERS, REQUEST_TIMEOUT
-from data_extraction import extract_div_data, extract_table_data
+from src.config import DEFAULT_HEADERS, REQUEST_TIMEOUT
+from src.extraction.data_extraction import extract_div_data, extract_table_data
 
 
 def is_url(text: str) -> bool:

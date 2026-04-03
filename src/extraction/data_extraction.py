@@ -6,7 +6,7 @@ import re
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any
 
-from config import DEFAULT_DIV_ID, DEFAULT_TABLE_ID
+from src.config import DEFAULT_DIV_ID, DEFAULT_TABLE_ID
 
 
 def extract_div_data(html_content: str, div_id: str = DEFAULT_DIV_ID) -> str:
