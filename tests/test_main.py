@@ -249,13 +249,20 @@ async def test_handle_photo_with_url_in_qr():
     mock_context.bot.get_file = AsyncMock(return_value=mock_file)
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
-    # Mock the image, decode, and fetch functions
+    # Mock the image, decode, requests, and fetch functions
     with patch('main.Image.open') as mock_image_open, \
          patch('main.decode', return_value=[mock_qr_obj]) as mock_decode, \
-         patch('main.fetch_webpage_title', return_value='📄 Title: Test'):
+         patch('main.requests.get') as mock_requests_get, \
+         patch('main.fetch_webpage_title_from_html', return_value='📄 Title: Test') as mock_fetch:
 
         mock_image = MagicMock()
         mock_image_open.return_value = mock_image
+
+        # Mock the response
+        mock_response = MagicMock()
+        mock_response.content = b'<html><body>Test</body></html>'
+        mock_response.raise_for_status = MagicMock()
+        mock_requests_get.return_value = mock_response
 
         # Set up the photo list
         mock_update.message.photo = [mock_photo]
@@ -356,3 +363,61 @@ async def test_fetch_webpage_title_with_div_extraction():
         # Check that div data is also included
         assert '🏢 Company: COMPANY FROM WEB' in result
         assert '📋 CNPJ: 11.222.333/0001-44' in result
+
+
+def test_extract_table_data_success():
+    """Test extracting table data from HTML."""
+    html_content = '''
+    <table id="tabResult">
+      <tr>
+        <td>
+          <span class="txtTit">CREME LEITE NESTLE TP 200G</span>
+          <span class="RCod">(Código: 12332)</span>
+          <span class="Rqtd"><strong>Qtde.:</strong>1</span>
+          <span class="RUN"><strong>UN: </strong>UN0001</span>
+          <span class="RvlUnit"><strong>Vl. Unit.:</strong>5,79</span>
+        </td>
+        <td><span class="valor">5,79</span></td>
+      </tr>
+    </table>
+    '''
+    result = main.extract_table_data(html_content)
+    assert len(result) == 1
+    product = result[0]
+    assert product['Produto'] == 'CREME LEITE NESTLE TP 200G'
+    assert product['Código'] == '12332'
+    assert product['Qtde'] == 1
+    assert product['UN'] == 'UN0001'
+    assert product['Vl_Unit'] == 5.79
+    assert product['Vl_Total'] == 5.79
+
+
+def test_extract_table_data_no_table():
+    """Test extracting table data when no table is found."""
+    html_content = '<div>No table here</div>'
+    result = main.extract_table_data(html_content)
+    assert result == []
+
+
+def test_create_products_dataframe():
+    """Test creating pandas DataFrame from table data."""
+    table_data = [
+        {
+            'Produto': 'Test Product',
+            'Código': '12345',
+            'Qtde': 2,
+            'UN': 'UN001',
+            'Vl_Unit': 10.50,
+            'Vl_Total': 21.00
+        }
+    ]
+    df = main.create_products_dataframe(table_data)
+    assert len(df) == 1
+    assert df.iloc[0]['Produto'] == 'Test Product'
+    assert df.iloc[0]['Vl_Total'] == 21.00
+
+
+def test_create_products_dataframe_empty():
+    """Test creating DataFrame from empty data."""
+    df = main.create_products_dataframe([])
+    assert df.empty

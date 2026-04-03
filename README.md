@@ -8,8 +8,10 @@ A Telegram bot that decodes QR codes from images and automatically extracts webp
 - 🔗 **URL Detection**: Automatically identifies if QR code contains a URL
 - 🌐 **Webpage Scraping**: Fetches and extracts title, description, and content from detected URLs
 - 📊 **Div Data Extraction**: Extracts structured data from HTML div elements (company info, CNPJ, addresses, etc.)
+- 📋 **Table Data Extraction**: Extracts product/inventory data from HTML tables and creates pandas DataFrames
+- 💾 **DataFrame Storage**: Stores extracted table data as pandas DataFrames for later analysis
 - ⚠️ **Error Handling**: Gracefully handles network errors, timeouts, and invalid URLs
-- ✅ **Comprehensive Tests**: 16 test cases with 86% code coverage
+- ✅ **Comprehensive Tests**: 20 test cases with 86% code coverage
 
 ## Setup
 
@@ -172,6 +174,34 @@ Bot: 🔗 QR Code URL found: https://example.com
 
 The bot automatically attempts to extract structured data from div elements when fetching URL-based QR codes.
 
+### Table Data Extraction & DataFrames
+The bot can extract product/inventory data from HTML tables and store it as pandas DataFrames for analysis.
+
+**Supported table structure:**
+- Product name (span class="txtTit")
+- Product code (span class="RCod")
+- Quantity (span class="Rqtd")
+- Unit (span class="RUN")
+- Unit price (span class="RvlUnit")
+- Total value (span class="valor")
+
+**Example table extraction:**
+```
+📊 Products Found: 1
+
+1. CREME LEITE NESTLE TP 200G
+   📋 Code: 12332
+   🔢 Qty: 1
+   📦 Unit: UN0001
+   💰 Unit Price: R$ 5.79
+   💵 Total: R$ 5.79
+
+💾 Products data stored! Use /dataframe to view it.
+```
+
+**DataFrame Access:**
+Use `/dataframe` command to view stored product data with totals and summaries.
+
 ### Error Handling
 The bot handles various error scenarios:
 - 🔴 Connection errors
@@ -245,16 +275,20 @@ python_bot/
 ├── docker-compose.yml              # Docker Compose orchestration
 ├── requirements.txt                # Python dependencies
 ├── README.md                        # This file
-└── example_extract_div.py          # Example usage of div extraction
+├── example_extract_div.py          # Example usage of div extraction
+└── example_extract_table.py        # Example usage of table extraction
 ```
 
 ## Key Functions
 
 **main.py contains:**
 - `start()` - Bot command handler for `/start`
+- `get_dataframe()` - Display stored products DataFrame
 - `is_url(text)` - URL validation
 - `fetch_webpage_title(url)` - Async webpage fetching and parsing
 - `extract_div_data(html_content, div_id)` - HTML div data extraction
+- `extract_table_data(html_content, table_id)` - HTML table data extraction
+- `create_products_dataframe(table_data)` - Create pandas DataFrame from table data
 - `handle_photo(update, context)` - Main QR code detection handler
 
 ## Testing
@@ -262,11 +296,12 @@ python_bot/
 The project includes comprehensive automated tests:
 
 **Test Coverage:**
-- ✅ 15 unit tests
+- ✅ 20 unit tests
 - ✅ 86% code coverage
 - ✅ Async handler testing
 - ✅ Edge case handling (missing divs, invalid URLs, network errors)
 - ✅ BeautifulSoup parsing validation
+- ✅ Table data extraction and DataFrame creation
 
 **Test Categories:**
 - QR code detection and decoding
@@ -320,6 +355,7 @@ print(result)
 ### Web Scraping
 - `requests` - HTTP client
 - `beautifulsoup4` - HTML parsing
+- `pandas` - Data manipulation and DataFrame creation
 
 ### Development
 - `pytest` - Testing framework
