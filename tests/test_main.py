@@ -171,3 +171,253 @@ async def test_handle_photo_uses_highest_resolution():
 
         # Verify it uses the last (highest resolution) photo
         mock_context.bot.get_file.assert_called_once_with(mock_photo_high.file_id)
+
+
+def test_is_url_valid():
+    """Test URL detection with valid URLs."""
+    valid_urls = [
+        'https://www.example.com',
+        'http://example.com',
+        'https://github.com/user/repo',
+        'http://localhost:8000/path'
+    ]
+    for url in valid_urls:
+        assert main.is_url(url) is True
+
+
+def test_is_url_invalid():
+    """Test URL detection with invalid URLs."""
+    invalid_urls = [
+        'Hello World',
+        'not a url',
+        'www.example.com',  # Missing scheme
+        'just some text',
+        ''
+    ]
+    for url in invalid_urls:
+        assert main.is_url(url) is False
+
+
+@pytest.mark.asyncio
+async def test_fetch_webpage_title_success():
+    """Test fetching webpage title successfully."""
+    mock_response = MagicMock()
+    mock_response.content = b'<html><head><title>Test Page</title><meta name="description" content="Test Description"></head><body><p>First paragraph text</p></body></html>'
+    
+    with patch('main.requests.get', return_value=mock_response) as mock_get:
+        result = await main.fetch_webpage_title('https://example.com')
+        
+        mock_get.assert_called_once()
+        assert 'Test Page' in result
+        assert 'Test Description' in result
+
+
+@pytest.mark.asyncio
+async def test_fetch_webpage_title_timeout():
+    """Test handling of timeout error."""
+    with patch('main.requests.get', side_effect=main.requests.exceptions.Timeout()):
+        result = await main.fetch_webpage_title('https://example.com')
+        
+        assert 'timed out' in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_fetch_webpage_title_connection_error():
+    """Test handling of connection error."""
+    with patch('main.requests.get', side_effect=main.requests.exceptions.ConnectionError()):
+        result = await main.fetch_webpage_title('https://example.com')
+        
+        assert 'could not connect' in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_handle_photo_with_url_in_qr():
+    """Test photo handler when QR code contains a URL."""
+    # Create a mock QR code object with URL
+    mock_qr_obj = MagicMock()
+    mock_qr_obj.data = b"https://example.com"
+
+    # Mock the update and context
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+
+    mock_photo = MagicMock()
+    mock_file = AsyncMock()
+    mock_context = MagicMock()
+    mock_context.bot.get_file = AsyncMock(return_value=mock_file)
+    mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
+
+    # Mock the image, decode, requests, and fetch functions
+    with patch('main.Image.open') as mock_image_open, \
+         patch('main.decode', return_value=[mock_qr_obj]) as mock_decode, \
+         patch('main.requests.get') as mock_requests_get, \
+         patch('main.fetch_webpage_title_from_html', return_value='📄 Title: Test') as mock_fetch:
+
+        mock_image = MagicMock()
+        mock_image_open.return_value = mock_image
+
+        # Mock the response
+        mock_response = MagicMock()
+        mock_response.content = b'<html><body>Test</body></html>'
+        mock_response.raise_for_status = MagicMock()
+        mock_requests_get.return_value = mock_response
+
+        # Set up the photo list
+        mock_update.message.photo = [mock_photo]
+
+        # Call the handler
+        await main.handle_photo(mock_update, mock_context)
+
+        # Verify the calls
+        assert mock_message.reply_text.call_count >= 1
+        calls = mock_message.reply_text.call_args_list
+        assert any('https://example.com' in str(call) for call in calls)
+
+
+def test_extract_div_data_success():
+    """Test extracting data from div elements."""
+    html_content = '''
+    <div id="conteudo">
+        <div class="txtCenter">
+            <div class="txtTopo">GERALDO BENEDETE COMPANHIA LTDA</div>
+            <div class="text">CNPJ: 45.477.452/0001-05</div>
+            <div class="text">AVENIDA GETULIO VARGAS, 339, BAMBU, PORTO FELIZ, SP</div>
+        </div>
+    </div>
+    '''
+    result = main.extract_div_data(html_content)
+    assert 'GERALDO BENEDETE COMPANHIA LTDA' in result
+    assert 'CNPJ' in result
+    assert '45.477.452/0001-05' in result
+    assert 'AVENIDA GETULIO VARGAS' in result
+
+
+def test_extract_div_data_custom_div_id():
+    """Test extracting data with custom div ID."""
+    html_content = '''
+    <div id="custom_div">
+        <div class="txtTopo">COMPANY NAME</div>
+        <div class="text">CNPJ: 12.345.678/0001-90</div>
+    </div>
+    '''
+    result = main.extract_div_data(html_content, div_id='custom_div')
+    assert 'COMPANY NAME' in result
+    assert '12.345.678/0001-90' in result
+
+
+def test_extract_div_data_not_found():
+    """Test extracting data when div is not found."""
+    html_content = '<div id="other"><p>Test</p></div>'
+    result = main.extract_div_data(html_content)
+    assert 'not found' in result.lower()
+
+
+def test_extract_div_data_formatting():
+    """Test that div data is formatted with proper icons."""
+    html_content = '''
+    <div id="conteudo">
+        <div class="txtTopo">TEST CO</div>
+        <div class="text">CNPJ: 11.111.111/0001-11</div>
+        <div class="text">AVENIDA TEST, 123</div>
+    </div>
+    '''
+    result = main.extract_div_data(html_content)
+    assert '🏢' in result  # Company icon
+    assert '📋' in result  # CNPJ icon
+    assert '📍' in result  # Address icon
+
+
+@pytest.mark.asyncio
+async def test_fetch_webpage_title_with_div_extraction():
+    """Test that fetch_webpage_title includes div data extraction."""
+    html_content = '''
+    <html>
+    <head><title>Test Page</title>
+    <meta name="description" content="Test description">
+    </head>
+    <body>
+    <p>This is the first paragraph.</p>
+    <div id="conteudo">
+        <div class="txtTopo">COMPANY FROM WEB</div>
+        <div class="text">CNPJ: 11.222.333/0001-44</div>
+    </div>
+    </body>
+    </html>
+    '''
+
+    with patch('main.requests.get') as mock_get:
+        mock_response = MagicMock()
+        mock_response.content = html_content
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = await main.fetch_webpage_title('https://example.com')
+
+        # Check that regular webpage info is included
+        assert '📄 Title: Test Page' in result
+        assert '📝 Description: Test description' in result
+        assert 'This is the first paragraph' in result
+
+        # Check that div data is also included
+        assert '🏢 Company: COMPANY FROM WEB' in result
+        assert '📋 CNPJ: 11.222.333/0001-44' in result
+
+
+def test_extract_table_data_success():
+    """Test extracting table data from HTML."""
+    html_content = '''
+    <table id="tabResult">
+      <tr>
+        <td>
+          <span class="txtTit">CREME LEITE NESTLE TP 200G</span>
+          <span class="RCod">(Código: 12332)</span>
+          <span class="Rqtd"><strong>Qtde.:</strong>1</span>
+          <span class="RUN"><strong>UN: </strong>UN0001</span>
+          <span class="RvlUnit"><strong>Vl. Unit.:</strong>5,79</span>
+        </td>
+        <td><span class="valor">5,79</span></td>
+      </tr>
+    </table>
+    '''
+    result = main.extract_table_data(html_content)
+    assert len(result) == 1
+    product = result[0]
+    assert product['Produto'] == 'CREME LEITE NESTLE TP 200G'
+    assert product['Código'] == '12332'
+    assert product['Qtde'] == 1
+    assert product['UN'] == 'UN0001'
+    assert product['Vl_Unit'] == 5.79
+    assert product['Vl_Total'] == 5.79
+
+
+def test_extract_table_data_no_table():
+    """Test extracting table data when no table is found."""
+    html_content = '<div>No table here</div>'
+    result = main.extract_table_data(html_content)
+    assert result == []
+
+
+def test_create_products_dataframe():
+    """Test creating pandas DataFrame from table data."""
+    table_data = [
+        {
+            'Produto': 'Test Product',
+            'Código': '12345',
+            'Qtde': 2,
+            'UN': 'UN001',
+            'Vl_Unit': 10.50,
+            'Vl_Total': 21.00
+        }
+    ]
+    df = main.create_products_dataframe(table_data)
+    assert len(df) == 1
+    assert df.iloc[0]['Produto'] == 'Test Product'
+    assert df.iloc[0]['Vl_Total'] == 21.00
+
+
+def test_create_products_dataframe_empty():
+    """Test creating DataFrame from empty data."""
+    df = main.create_products_dataframe([])
+    assert df.empty
