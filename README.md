@@ -4,7 +4,24 @@ A Telegram bot that decodes QR codes from images.
 
 ## Setup
 
-1. Install dependencies:
+### System Dependencies
+The bot requires the `zbar` shared library for QR code detection:
+
+**Linux/Ubuntu:**
+```bash
+sudo apt-get install libzbar0
+```
+
+**macOS:**
+```bash
+brew install zbar
+```
+
+**Windows:**
+`pyzbar` includes the necessary binaries automatically.
+
+### Python Dependencies
+1. Install Python dependencies:
    ```
    pip install -r requirements.txt
    ```
@@ -39,6 +56,26 @@ To run with Docker:
    ```
    docker-compose up --build
    ```
+
+Note: The Dockerfile handles system dependencies automatically.
+
+## CI/CD Testing
+
+For CI/CD pipelines (GitHub Actions, GitLab CI, etc.), add system dependencies:
+
+**GitHub Actions example:**
+```yaml
+- name: Install system dependencies
+  run: sudo apt-get install -y libzbar0
+
+- name: Install Python dependencies
+  run: pip install -r requirements.txt
+
+- name: Run tests
+  run: pytest -v
+```
+
+Note: Tests automatically mock `pyzbar` during test collection to work in environments without system libraries.
 
 ## Usage
 
