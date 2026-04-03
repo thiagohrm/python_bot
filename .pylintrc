@@ -1,0 +1,27 @@
+[MASTER]
+max-parents = 7
+unsafe-load-any-extension = False
+extension-pkg-allow-list = telegram
+
+[MESSAGES CONTROL]
+disable = 
+    C0111,  # missing-docstring
+    R0913,  # too-many-arguments
+    R0914,  # too-many-locals
+    W0212,  # protected-access
+    W0613,  # unused-argument
+
+[VARIABLES]
+additional-builtins = _
+
+[FORMAT]
+max-line-length = 127
+indent-string = '    '
+
+[DESIGN]
+max-attributes = 7
+max-bool-expr = 5
+max-branches = 12
+max-locals = 15
+max-statements = 50
+min-public-methods = 1
