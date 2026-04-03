@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Lint and Test CI/CD
 
 on:
   push:
