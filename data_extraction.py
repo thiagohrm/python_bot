@@ -128,3 +128,103 @@ def extract_table_data(html_content: str, table_id: str = DEFAULT_TABLE_ID) -> L
     except Exception as e:
         print(f"Error extracting table data: {str(e)}")
         return []
+
+
+def extract_total_data(html_content: str, div_id: str = "totalNota") -> Dict[str, Any]:
+    """Extract total payment data from the totalNota div."""
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        total_div = soup.find('div', id=div_id)
+
+        if not total_div:
+            return {}
+
+        totals = {}
+
+        # Find all divs with id="linhaTotal" and id="linhaForma"
+        total_rows = total_div.find_all('div', id=['linhaTotal', 'linhaForma'])
+
+        for row in total_rows:
+            label = row.find('label')
+            span = row.find('span', class_='totalNumb')
+
+            if label and span:
+                label_text = label.get_text(strip=True)
+                span_text = span.get_text(strip=True)
+
+                # Map labels to keys
+                if 'Qtd. total de itens' in label_text:
+                    totals['total_items'] = int(span_text) if span_text.isdigit() else 0
+                elif 'Valor a pagar R$' in label_text:
+                    # Convert Brazilian format to float
+                    totals['amount_to_pay'] = float(span_text.replace(',', '.')) if span_text else 0.0
+                elif 'Troco' in label.get_text(strip=True):
+                    totals['change'] = float(span_text.replace(',', '.')) if span_text else 0.0
+
+        # Extract payment method and amount paid - they have a different structure
+        # Find all spans with class 'totalNumb' that contain amounts
+        amount_spans = total_div.find_all('span', class_='totalNumb')
+        payment_method_labels = total_div.find_all('label', class_='tx')
+
+        # The payment method is in a label with class 'tx'
+        for pm_label in payment_method_labels:
+            pm_text = pm_label.get_text(strip=True)
+            if 'Cartão' in pm_text or 'Dinheiro' in pm_text or 'PIX' in pm_text:
+                totals['payment_method'] = pm_text
+                # The next span after this label should be the amount paid
+                # Find the parent div and get the next span
+                parent_div = pm_label.find_parent('div', id='linhaTotal')
+                if parent_div:
+                    amount_span = parent_div.find('span', class_='totalNumb')
+                    if amount_span and amount_span.get_text(strip=True):
+                        amount_text = amount_span.get_text(strip=True)
+                        totals['amount_paid'] = float(amount_text.replace(',', '.')) if amount_text else 0.0
+                break
+
+        return totals
+    except Exception as e:
+        print(f"Error extracting total data: {str(e)}")
+        return {}
+
+
+def extract_emission_info(html_content: str, div_id: str = "infos") -> Dict[str, Any]:
+    """Extract emission date and other general info from the infos div."""
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        infos_div = soup.find('div', id=div_id)
+
+        if not infos_div:
+            return {}
+
+        info = {}
+
+        # Find the li element containing the information
+        li_element = infos_div.find('li')
+        if li_element:
+            text_content = li_element.get_text()
+
+            # Extract emission date using regex - match DD/MM/YYYY HH:MM:SS pattern
+            emission_match = re.search(r'Emissão:\s*(\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}:\d{2})', text_content)
+            if emission_match:
+                info['emission_date'] = emission_match.group(1).strip()
+            else:
+                # Fallback: try to extract just the date-like pattern after "Emissão:"
+                emission_match = re.search(r'Emissão:\s*([^\n\-]+)', text_content)
+                if emission_match:
+                    info['emission_date'] = emission_match.group(1).strip()
+
+            # Extract protocol - improve regex to capture just the number
+            protocol_match = re.search(r'Protocolo de Autorização:\s*(\d+)', text_content)
+            if protocol_match:
+                info['authorization_protocol'] = protocol_match.group(1).strip()
+
+            # Extract environment
+            if 'Ambiente de Produção' in text_content:
+                info['environment'] = 'Produção'
+            elif 'Ambiente de Homologação' in text_content:
+                info['environment'] = 'Homologação'
+
+        return info
+    except Exception as e:
+        print(f"Error extracting emission info: {str(e)}")
+        return {}
