@@ -1,7 +1,10 @@
+import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from io import BytesIO
-from PIL import Image
+
+# Set a dummy token for testing
+os.environ['TELEGRAM_BOT_TOKEN'] = 'dummy_token_for_testing'
+
 import main
 
 
@@ -11,6 +14,7 @@ async def test_start_handler():
     # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
     mock_update.message = mock_message
     mock_context = MagicMock()
 
@@ -33,6 +37,7 @@ async def test_handle_photo_with_qr_code():
     # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
     mock_update.message = mock_message
 
     mock_photo = MagicMock()
@@ -74,6 +79,7 @@ async def test_handle_photo_multiple_qr_codes():
     # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
     mock_update.message = mock_message
 
     mock_photo = MagicMock()
@@ -107,6 +113,7 @@ async def test_handle_photo_no_qr_code():
     # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
     mock_update.message = mock_message
 
     mock_photo = MagicMock()
@@ -138,6 +145,7 @@ async def test_handle_photo_uses_highest_resolution():
     # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
     mock_update.message = mock_message
 
     # Create multiple photos (different resolutions)
