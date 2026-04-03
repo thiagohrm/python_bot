@@ -1,6 +1,14 @@
 # python_bot
 
-A Telegram bot that decodes QR codes from images.
+A Telegram bot that decodes QR codes from images and automatically extracts webpage content from URL-based QR codes.
+
+## Features
+
+- 📱 **QR Code Detection**: Scans images and detects QR codes
+- 🔗 **URL Detection**: Automatically identifies if QR code contains a URL
+- 🌐 **Webpage Scraping**: Fetches and extracts title, description, and content from detected URLs
+- ⚠️ **Error Handling**: Gracefully handles network errors, timeouts, and invalid URLs
+- ✅ **Comprehensive Tests**: 11 test cases with 85% code coverage
 
 ## Setup
 
@@ -132,6 +140,34 @@ The repository uses GitHub Actions for automated testing and linting.
 
 ## Usage
 
-- Start a chat with your bot on Telegram.
-- Send `/start` to get started.
-- Send an image containing a QR code, and the bot will reply with the decoded text.
+### Basic QR Code Scanning
+1. Start a chat with your bot on Telegram
+2. Send `/start` to get instructions
+3. Send an image containing a QR code
+4. The bot will decode and reply with the content
+
+### URL Detection and Webpage Scraping
+If the QR code contains a URL, the bot will:
+1. ✅ Detect it's a URL
+2. 🌐 Fetch the webpage
+3. 📄 Extract and return:
+   - Page title
+   - Meta description
+   - First paragraph text
+
+**Example:**
+```
+User: [Sends image with QR code pointing to https://example.com]
+Bot: 🔗 QR Code URL found: https://example.com
+     ⏳ Fetching webpage...
+     📄 Title: Example Domain
+     📝 Description: Example Domain. This domain is for use...
+     Example text from article...
+```
+
+### Error Handling
+The bot handles various error scenarios:
+- 🔴 Connection errors
+- ⏱️ Request timeouts  
+- 🚫 Invalid URLs
+- 📵 No QR code found in image
