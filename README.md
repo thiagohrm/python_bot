@@ -1,6 +1,6 @@
 # python_bot
 
-A Telegram bot that decodes QR codes from images and automatically extracts webpage content from URL-based QR codes.
+A modular Telegram bot that decodes QR codes from images and automatically extracts webpage content from URL-based QR codes. Built with clean architecture principles for maintainability and extensibility.
 
 ## Features
 
@@ -11,7 +11,25 @@ A Telegram bot that decodes QR codes from images and automatically extracts webp
 - 📋 **Table Data Extraction**: Extracts product/inventory data from HTML tables and creates pandas DataFrames
 - 💾 **DataFrame Storage**: Stores extracted table data as pandas DataFrames for later analysis
 - ⚠️ **Error Handling**: Gracefully handles network errors, timeouts, and invalid URLs
-- ✅ **Comprehensive Tests**: 20 test cases with 86% code coverage
+- 🏗️ **Modular Architecture**: Clean separation of concerns with dedicated modules for each functionality
+- ✅ **Comprehensive Tests**: 20 test cases covering all modules and edge cases
+
+## Architecture
+
+This project follows a modular architecture that separates concerns into dedicated modules:
+
+- **`config.py`**: Centralized configuration management
+- **`data_extraction.py`**: HTML parsing and structured data extraction
+- **`data_processing.py`**: Data manipulation and DataFrame operations
+- **`web_scraping.py`**: HTTP requests and webpage content processing
+- **`bot_handlers.py`**: Telegram bot interaction logic
+- **`main.py`**: Application entry point and orchestration
+
+This design enables:
+- **Independent testing** of each module
+- **Easy maintenance** and code reuse
+- **Clear separation of concerns**
+- **Scalable development** with focused responsibilities
 
 ## Setup
 
@@ -85,7 +103,7 @@ Run linters to check code quality:
 flake8 .
 
 # Pylint (code analysis)
-pylint main.py
+pylint *.py
 ```
 
 Configuration files:
@@ -98,7 +116,7 @@ Configuration files:
 pytest -v
 
 # Run tests with coverage
-pytest --cov=main --cov-report=html
+pytest --cov --cov-report=html
 
 # Run specific test
 pytest -k "test_start_handler" -v
@@ -116,7 +134,7 @@ The repository uses GitHub Actions for automated testing and linting.
    - Pylint: Code analysis
    
 2. 🧪 **Testing Phase**
-   - Pytest: Unit tests
+   - Pytest: Unit tests across all modules
    - Coverage: Code coverage analysis
    
 3. 📊 **Reporting**
@@ -223,21 +241,7 @@ Extracts structured data from a specific HTML div element.
 
 **Example:**
 ```python
-from main import extract_div_data
-
-html = """
-<div id="company-info">
-  <div class="txtTopo">ACME CORPORATION</div>
-  <div class="text">CNPJ: 99.999.999/0001-00</div>
-  <div class="text">RUA PRINCIPAL, 1000, SAO PAULO, SP</div>
-</div>
-"""
-
-result = extract_div_data(html, div_id="company-info")
-print(result)
-# Output:
-# 🏢 Company: ACME CORPORATION
-# 
+from data_extraction import extract_div_data
 # 📋 CNPJ: 99.999.999/0001-00
 # 📍 RUA PRINCIPAL, 1000, SAO PAULO, SP
 ```
@@ -251,6 +255,14 @@ Validates if text is a valid URL.
 **Returns:**
 - bool: True if valid URL, False otherwise
 
+**Example:**
+```python
+from web_scraping import is_url
+
+print(is_url("https://example.com"))  # True
+print(is_url("not a url"))            # False
+```
+
 ### `fetch_webpage_title(url)`
 Fetches a URL and extracts page metadata and div data.
 
@@ -260,13 +272,31 @@ Fetches a URL and extracts page metadata and div data.
 **Returns:**
 - str: Formatted webpage content including title, description, content, and extracted div data (if present)
 
+**Example:**
+```python
+import asyncio
+from web_scraping import fetch_webpage_title
+
+async def main():
+    result = await fetch_webpage_title("https://example.com")
+    print(result)
+
+asyncio.run(main())
+```
+
 ## Project Structure
 
 ```
 python_bot/
-├── main.py                          # Core bot logic and handlers
+├── main.py                          # Application entry point
+├── config.py                        # Configuration constants and settings
+├── data_extraction.py               # HTML parsing and data extraction utilities
+├── data_processing.py               # DataFrame creation and formatting
+├── web_scraping.py                  # HTTP requests and webpage content extraction
+├── bot_handlers.py                  # Telegram bot command and message handlers
+├── __init__.py                      # Package initialization
 ├── tests/
-│   ├── test_main.py                # Comprehensive unit tests (15 tests)
+│   ├── test_main.py                # Comprehensive unit tests (20 tests)
 │   └── conftest.py                 # Pytest configuration and mocking
 ├── .github/
 │   └── workflows/
@@ -281,15 +311,29 @@ python_bot/
 
 ## Key Functions
 
-**main.py contains:**
-- `start()` - Bot command handler for `/start`
-- `get_dataframe()` - Display stored products DataFrame
-- `is_url(text)` - URL validation
-- `fetch_webpage_title(url)` - Async webpage fetching and parsing
+**config.py:**
+- Configuration constants (TOKEN, DEFAULT_HEADERS, REQUEST_TIMEOUT, etc.)
+
+**data_extraction.py:**
 - `extract_div_data(html_content, div_id)` - HTML div data extraction
 - `extract_table_data(html_content, table_id)` - HTML table data extraction
+
+**data_processing.py:**
 - `create_products_dataframe(table_data)` - Create pandas DataFrame from table data
+- `format_dataframe_for_display(df)` - Format DataFrame for Telegram display
+
+**web_scraping.py:**
+- `is_url(text)` - URL validation
+- `fetch_webpage_title(url)` - Async webpage fetching and parsing
+- `fetch_webpage_title_from_html(html_content)` - Extract data from HTML content
+
+**bot_handlers.py:**
+- `start()` - Bot command handler for `/start`
+- `get_dataframe()` - Display stored products DataFrame
 - `handle_photo(update, context)` - Main QR code detection handler
+
+**main.py:**
+- `main()` - Application entry point
 
 ## Testing
 
@@ -297,7 +341,7 @@ The project includes comprehensive automated tests:
 
 **Test Coverage:**
 - ✅ 20 unit tests
-- ✅ 86% code coverage
+- ✅ All tests passing
 - ✅ Async handler testing
 - ✅ Edge case handling (missing divs, invalid URLs, network errors)
 - ✅ BeautifulSoup parsing validation
@@ -312,7 +356,7 @@ The project includes comprehensive automated tests:
 
 Run tests locally:
 ```bash
-pytest -v --cov=main --cov-report=term-missing
+pytest -v --cov --cov-report=term-missing
 ```
 
 ## Examples
@@ -321,8 +365,7 @@ pytest -v --cov=main --cov-report=term-missing
 See [example_extract_div.py](example_extract_div.py) for full usage examples.
 
 ```python
-from main import extract_div_data
-from bs4 import BeautifulSoup
+from data_extraction import extract_div_data
 
 html = """
 <div id="conteudo">

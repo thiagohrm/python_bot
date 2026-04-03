@@ -1,11 +1,16 @@
 import os
 import pytest
+import requests
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # Set a dummy token for testing
 os.environ['TELEGRAM_BOT_TOKEN'] = 'dummy_token_for_testing'
 
-import main
+# Import modules directly
+from data_extraction import extract_div_data, extract_table_data
+from data_processing import create_products_dataframe
+from web_scraping import is_url, fetch_webpage_title, fetch_webpage_title_from_html
+from bot_handlers import start, get_dataframe, handle_photo
 
 
 @pytest.mark.asyncio
@@ -19,7 +24,7 @@ async def test_start_handler():
     mock_context = MagicMock()
 
     # Call the handler
-    await main.start(mock_update, mock_context)
+    await start(mock_update, mock_context)
 
     # Verify the response
     mock_message.reply_text.assert_called_once_with(
@@ -47,8 +52,8 @@ async def test_handle_photo_with_qr_code():
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
     # Mock the image and decode function
-    with patch('main.Image.open') as mock_image_open, \
-         patch('main.decode', return_value=[mock_qr_obj]) as mock_decode:
+    with patch('PIL.Image.open') as mock_image_open, \
+         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]) as mock_decode:
 
         mock_image = MagicMock()
         mock_image_open.return_value = mock_image
@@ -57,7 +62,7 @@ async def test_handle_photo_with_qr_code():
         mock_update.message.photo = [mock_photo]
 
         # Call the handler
-        await main.handle_photo(mock_update, mock_context)
+        await handle_photo(mock_update, mock_context)
 
         # Verify the calls
         mock_context.bot.get_file.assert_called_once_with(mock_photo.file_id)
@@ -89,8 +94,8 @@ async def test_handle_photo_multiple_qr_codes():
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
     # Mock the image and decode function
-    with patch('main.Image.open') as mock_image_open, \
-         patch('main.decode', return_value=[mock_qr_obj1, mock_qr_obj2]) as mock_decode:
+    with patch('PIL.Image.open') as mock_image_open, \
+         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj1, mock_qr_obj2]) as mock_decode:
 
         mock_image = MagicMock()
         mock_image_open.return_value = mock_image
@@ -99,7 +104,7 @@ async def test_handle_photo_multiple_qr_codes():
         mock_update.message.photo = [mock_photo]
 
         # Call the handler
-        await main.handle_photo(mock_update, mock_context)
+        await handle_photo(mock_update, mock_context)
 
         # Verify the calls
         assert mock_message.reply_text.call_count == 2
@@ -123,8 +128,8 @@ async def test_handle_photo_no_qr_code():
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
     # Mock the image and decode function (no QR codes found)
-    with patch('main.Image.open') as mock_image_open, \
-         patch('main.decode', return_value=[]) as mock_decode:
+    with patch('PIL.Image.open') as mock_image_open, \
+         patch('pyzbar.pyzbar.decode', return_value=[]) as mock_decode:
 
         mock_image = MagicMock()
         mock_image_open.return_value = mock_image
@@ -133,7 +138,7 @@ async def test_handle_photo_no_qr_code():
         mock_update.message.photo = [mock_photo]
 
         # Call the handler
-        await main.handle_photo(mock_update, mock_context)
+        await handle_photo(mock_update, mock_context)
 
         # Verify the response
         mock_message.reply_text.assert_called_once_with("No QR code found in the image.")
@@ -157,8 +162,8 @@ async def test_handle_photo_uses_highest_resolution():
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
     # Mock the image and decode function
-    with patch('main.Image.open') as mock_image_open, \
-         patch('main.decode', return_value=[]) as mock_decode:
+    with patch('PIL.Image.open') as mock_image_open, \
+         patch('pyzbar.pyzbar.decode', return_value=[]) as mock_decode:
 
         mock_image = MagicMock()
         mock_image_open.return_value = mock_image
@@ -167,7 +172,7 @@ async def test_handle_photo_uses_highest_resolution():
         mock_update.message.photo = [mock_photo_low, mock_photo_high]
 
         # Call the handler
-        await main.handle_photo(mock_update, mock_context)
+        await handle_photo(mock_update, mock_context)
 
         # Verify it uses the last (highest resolution) photo
         mock_context.bot.get_file.assert_called_once_with(mock_photo_high.file_id)
@@ -182,7 +187,7 @@ def test_is_url_valid():
         'http://localhost:8000/path'
     ]
     for url in valid_urls:
-        assert main.is_url(url) is True
+        assert is_url(url) is True
 
 
 def test_is_url_invalid():
@@ -195,7 +200,7 @@ def test_is_url_invalid():
         ''
     ]
     for url in invalid_urls:
-        assert main.is_url(url) is False
+        assert is_url(url) is False
 
 
 @pytest.mark.asyncio
@@ -204,8 +209,8 @@ async def test_fetch_webpage_title_success():
     mock_response = MagicMock()
     mock_response.content = b'<html><head><title>Test Page</title><meta name="description" content="Test Description"></head><body><p>First paragraph text</p></body></html>'
     
-    with patch('main.requests.get', return_value=mock_response) as mock_get:
-        result = await main.fetch_webpage_title('https://example.com')
+    with patch('web_scraping.requests.get', return_value=mock_response) as mock_get:
+        result = await fetch_webpage_title('https://example.com')
         
         mock_get.assert_called_once()
         assert 'Test Page' in result
@@ -215,8 +220,8 @@ async def test_fetch_webpage_title_success():
 @pytest.mark.asyncio
 async def test_fetch_webpage_title_timeout():
     """Test handling of timeout error."""
-    with patch('main.requests.get', side_effect=main.requests.exceptions.Timeout()):
-        result = await main.fetch_webpage_title('https://example.com')
+    with patch('web_scraping.requests.get', side_effect=requests.exceptions.Timeout()):
+        result = await fetch_webpage_title('https://example.com')
         
         assert 'timed out' in result.lower()
 
@@ -224,8 +229,8 @@ async def test_fetch_webpage_title_timeout():
 @pytest.mark.asyncio
 async def test_fetch_webpage_title_connection_error():
     """Test handling of connection error."""
-    with patch('main.requests.get', side_effect=main.requests.exceptions.ConnectionError()):
-        result = await main.fetch_webpage_title('https://example.com')
+    with patch('web_scraping.requests.get', side_effect=requests.exceptions.ConnectionError()):
+        result = await fetch_webpage_title('https://example.com')
         
         assert 'could not connect' in result.lower()
 
@@ -250,10 +255,10 @@ async def test_handle_photo_with_url_in_qr():
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
     # Mock the image, decode, requests, and fetch functions
-    with patch('main.Image.open') as mock_image_open, \
-         patch('main.decode', return_value=[mock_qr_obj]) as mock_decode, \
-         patch('main.requests.get') as mock_requests_get, \
-         patch('main.fetch_webpage_title_from_html', return_value='📄 Title: Test') as mock_fetch:
+    with patch('PIL.Image.open') as mock_image_open, \
+         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]) as mock_decode, \
+         patch('web_scraping.requests.get') as mock_requests_get, \
+         patch('web_scraping.fetch_webpage_title_from_html', return_value='📄 Title: Test') as mock_fetch:
 
         mock_image = MagicMock()
         mock_image_open.return_value = mock_image
@@ -268,7 +273,7 @@ async def test_handle_photo_with_url_in_qr():
         mock_update.message.photo = [mock_photo]
 
         # Call the handler
-        await main.handle_photo(mock_update, mock_context)
+        await handle_photo(mock_update, mock_context)
 
         # Verify the calls
         assert mock_message.reply_text.call_count >= 1
@@ -287,7 +292,7 @@ def test_extract_div_data_success():
         </div>
     </div>
     '''
-    result = main.extract_div_data(html_content)
+    result = extract_div_data(html_content)
     assert 'GERALDO BENEDETE COMPANHIA LTDA' in result
     assert 'CNPJ' in result
     assert '45.477.452/0001-05' in result
@@ -302,7 +307,7 @@ def test_extract_div_data_custom_div_id():
         <div class="text">CNPJ: 12.345.678/0001-90</div>
     </div>
     '''
-    result = main.extract_div_data(html_content, div_id='custom_div')
+    result = extract_div_data(html_content, div_id='custom_div')
     assert 'COMPANY NAME' in result
     assert '12.345.678/0001-90' in result
 
@@ -310,7 +315,7 @@ def test_extract_div_data_custom_div_id():
 def test_extract_div_data_not_found():
     """Test extracting data when div is not found."""
     html_content = '<div id="other"><p>Test</p></div>'
-    result = main.extract_div_data(html_content)
+    result = extract_div_data(html_content)
     assert 'not found' in result.lower()
 
 
@@ -323,7 +328,7 @@ def test_extract_div_data_formatting():
         <div class="text">AVENIDA TEST, 123</div>
     </div>
     '''
-    result = main.extract_div_data(html_content)
+    result = extract_div_data(html_content)
     assert '🏢' in result  # Company icon
     assert '📋' in result  # CNPJ icon
     assert '📍' in result  # Address icon
@@ -347,13 +352,13 @@ async def test_fetch_webpage_title_with_div_extraction():
     </html>
     '''
 
-    with patch('main.requests.get') as mock_get:
+    with patch('web_scraping.requests.get') as mock_get:
         mock_response = MagicMock()
         mock_response.content = html_content
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        result = await main.fetch_webpage_title('https://example.com')
+        result = await fetch_webpage_title('https://example.com')
 
         # Check that regular webpage info is included
         assert '📄 Title: Test Page' in result
@@ -381,7 +386,7 @@ def test_extract_table_data_success():
       </tr>
     </table>
     '''
-    result = main.extract_table_data(html_content)
+    result = extract_table_data(html_content)
     assert len(result) == 1
     product = result[0]
     assert product['Produto'] == 'CREME LEITE NESTLE TP 200G'
@@ -395,7 +400,7 @@ def test_extract_table_data_success():
 def test_extract_table_data_no_table():
     """Test extracting table data when no table is found."""
     html_content = '<div>No table here</div>'
-    result = main.extract_table_data(html_content)
+    result = extract_table_data(html_content)
     assert result == []
 
 
@@ -411,7 +416,7 @@ def test_create_products_dataframe():
             'Vl_Total': 21.00
         }
     ]
-    df = main.create_products_dataframe(table_data)
+    df = create_products_dataframe(table_data)
     assert len(df) == 1
     assert df.iloc[0]['Produto'] == 'Test Product'
     assert df.iloc[0]['Vl_Total'] == 21.00
@@ -419,5 +424,5 @@ def test_create_products_dataframe():
 
 def test_create_products_dataframe_empty():
     """Test creating DataFrame from empty data."""
-    df = main.create_products_dataframe([])
+    df = create_products_dataframe([])
     assert df.empty
