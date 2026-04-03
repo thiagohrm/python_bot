@@ -7,8 +7,9 @@ A Telegram bot that decodes QR codes from images and automatically extracts webp
 - 📱 **QR Code Detection**: Scans images and detects QR codes
 - 🔗 **URL Detection**: Automatically identifies if QR code contains a URL
 - 🌐 **Webpage Scraping**: Fetches and extracts title, description, and content from detected URLs
+- 📊 **Div Data Extraction**: Extracts structured data from HTML div elements (company info, CNPJ, addresses, etc.)
 - ⚠️ **Error Handling**: Gracefully handles network errors, timeouts, and invalid URLs
-- ✅ **Comprehensive Tests**: 11 test cases with 85% code coverage
+- ✅ **Comprehensive Tests**: 16 test cases with 86% code coverage
 
 ## Setup
 
@@ -154,6 +155,7 @@ If the QR code contains a URL, the bot will:
    - Page title
    - Meta description
    - First paragraph text
+   - **Structured data from HTML div elements** (company info, CNPJ, addresses, etc.)
 
 **Example:**
 ```
@@ -163,7 +165,12 @@ Bot: 🔗 QR Code URL found: https://example.com
      📄 Title: Example Domain
      📝 Description: Example Domain. This domain is for use...
      Example text from article...
+     🏢 Company: GERALDO BENEDETE COMPANHIA LTDA
+     📋 CNPJ: 45.477.452/0001-05
+     📍 AVENIDA GETULIO VARGAS, 339, BAMBU, PORTO FELIZ, SP
 ```
+
+The bot automatically attempts to extract structured data from div elements when fetching URL-based QR codes.
 
 ### Error Handling
 The bot handles various error scenarios:
@@ -171,3 +178,175 @@ The bot handles various error scenarios:
 - ⏱️ Request timeouts  
 - 🚫 Invalid URLs
 - 📵 No QR code found in image
+
+## API Reference
+
+### `extract_div_data(html_content, div_id="conteudo")`
+Extracts structured data from a specific HTML div element.
+
+**Parameters:**
+- `html_content` (str): The HTML content to parse
+- `div_id` (str): The ID of the div element to extract (default: "conteudo")
+
+**Returns:**
+- str: Formatted data with emoji icons, or error message if div not found
+
+**Example:**
+```python
+from main import extract_div_data
+
+html = """
+<div id="company-info">
+  <div class="txtTopo">ACME CORPORATION</div>
+  <div class="text">CNPJ: 99.999.999/0001-00</div>
+  <div class="text">RUA PRINCIPAL, 1000, SAO PAULO, SP</div>
+</div>
+"""
+
+result = extract_div_data(html, div_id="company-info")
+print(result)
+# Output:
+# 🏢 Company: ACME CORPORATION
+# 
+# 📋 CNPJ: 99.999.999/0001-00
+# 📍 RUA PRINCIPAL, 1000, SAO PAULO, SP
+```
+
+### `is_url(text)`
+Validates if text is a valid URL.
+
+**Parameters:**
+- `text` (str): The text to validate
+
+**Returns:**
+- bool: True if valid URL, False otherwise
+
+### `fetch_webpage_title(url)`
+Fetches a URL and extracts page metadata and div data.
+
+**Parameters:**
+- `url` (str): The URL to fetch
+
+**Returns:**
+- str: Formatted webpage content including title, description, content, and extracted div data (if present)
+
+## Project Structure
+
+```
+python_bot/
+├── main.py                          # Core bot logic and handlers
+├── tests/
+│   ├── test_main.py                # Comprehensive unit tests (15 tests)
+│   └── conftest.py                 # Pytest configuration and mocking
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml               # GitHub Actions pipeline
+├── Dockerfile                       # Container configuration
+├── docker-compose.yml              # Docker Compose orchestration
+├── requirements.txt                # Python dependencies
+├── README.md                        # This file
+└── example_extract_div.py          # Example usage of div extraction
+```
+
+## Key Functions
+
+**main.py contains:**
+- `start()` - Bot command handler for `/start`
+- `is_url(text)` - URL validation
+- `fetch_webpage_title(url)` - Async webpage fetching and parsing
+- `extract_div_data(html_content, div_id)` - HTML div data extraction
+- `handle_photo(update, context)` - Main QR code detection handler
+
+## Testing
+
+The project includes comprehensive automated tests:
+
+**Test Coverage:**
+- ✅ 15 unit tests
+- ✅ 86% code coverage
+- ✅ Async handler testing
+- ✅ Edge case handling (missing divs, invalid URLs, network errors)
+- ✅ BeautifulSoup parsing validation
+
+**Test Categories:**
+- QR code detection and decoding
+- URL validation
+- Webpage scraping and parsing
+- HTML div data extraction
+- Error handling and recovery
+
+Run tests locally:
+```bash
+pytest -v --cov=main --cov-report=term-missing
+```
+
+## Examples
+
+### Example 1: HTML Div Extraction
+See [example_extract_div.py](example_extract_div.py) for full usage examples.
+
+```python
+from main import extract_div_data
+from bs4 import BeautifulSoup
+
+html = """
+<div id="conteudo">
+  <div class="txtTopo">COMPANY NAME</div>
+  <div class="text">CNPJ: XX.XXX.XXX/0001-XX</div>
+  <div class="text">RUA STREET, 123, CITY, STATE</div>
+</div>
+"""
+
+result = extract_div_data(html)
+print(result)
+```
+
+### Example 2: QR Code in Bot
+1. Start bot: `/start`
+2. Send image with QR code
+3. Bot automatically:
+   - Detects QR code
+   - Extracts URL if present
+   - Fetches webpage
+   - Extracts company information and displays formatted data
+
+## Dependencies
+
+### Core
+- `python-telegram-bot` - Telegram bot framework
+- `pyzbar` - QR code detection library
+- `Pillow` - Image processing
+
+### Web Scraping
+- `requests` - HTTP client
+- `beautifulsoup4` - HTML parsing
+
+### Development
+- `pytest` - Testing framework
+- `pytest-asyncio` - Async test support
+- `pytest-cov` - Coverage reporting
+- `flake8` - Style guide enforcement
+- `pylint` - Code analysis
+
+See `requirements.txt` for exact versions.
+
+## Troubleshooting
+
+### QR Code not detected
+- Ensure image quality is good
+- Try different angles/lighting
+- Check that QR code is fully visible
+
+### Webpage scraping fails
+- Verify URL in QR code is accessible
+- Check internet connection
+- Some websites may have access restrictions
+
+### Div extraction returns error
+- Verify div ID matches page structure
+- Check that HTML contains expected class names
+- Some pages may have different structures
+
+## License
+
+This project is open source and available under the MIT License.

@@ -267,3 +267,92 @@ async def test_handle_photo_with_url_in_qr():
         assert mock_message.reply_text.call_count >= 1
         calls = mock_message.reply_text.call_args_list
         assert any('https://example.com' in str(call) for call in calls)
+
+
+def test_extract_div_data_success():
+    """Test extracting data from div elements."""
+    html_content = '''
+    <div id="conteudo">
+        <div class="txtCenter">
+            <div class="txtTopo">GERALDO BENEDETE COMPANHIA LTDA</div>
+            <div class="text">CNPJ: 45.477.452/0001-05</div>
+            <div class="text">AVENIDA GETULIO VARGAS, 339, BAMBU, PORTO FELIZ, SP</div>
+        </div>
+    </div>
+    '''
+    result = main.extract_div_data(html_content)
+    assert 'GERALDO BENEDETE COMPANHIA LTDA' in result
+    assert 'CNPJ' in result
+    assert '45.477.452/0001-05' in result
+    assert 'AVENIDA GETULIO VARGAS' in result
+
+
+def test_extract_div_data_custom_div_id():
+    """Test extracting data with custom div ID."""
+    html_content = '''
+    <div id="custom_div">
+        <div class="txtTopo">COMPANY NAME</div>
+        <div class="text">CNPJ: 12.345.678/0001-90</div>
+    </div>
+    '''
+    result = main.extract_div_data(html_content, div_id='custom_div')
+    assert 'COMPANY NAME' in result
+    assert '12.345.678/0001-90' in result
+
+
+def test_extract_div_data_not_found():
+    """Test extracting data when div is not found."""
+    html_content = '<div id="other"><p>Test</p></div>'
+    result = main.extract_div_data(html_content)
+    assert 'not found' in result.lower()
+
+
+def test_extract_div_data_formatting():
+    """Test that div data is formatted with proper icons."""
+    html_content = '''
+    <div id="conteudo">
+        <div class="txtTopo">TEST CO</div>
+        <div class="text">CNPJ: 11.111.111/0001-11</div>
+        <div class="text">AVENIDA TEST, 123</div>
+    </div>
+    '''
+    result = main.extract_div_data(html_content)
+    assert '🏢' in result  # Company icon
+    assert '📋' in result  # CNPJ icon
+    assert '📍' in result  # Address icon
+
+
+@pytest.mark.asyncio
+async def test_fetch_webpage_title_with_div_extraction():
+    """Test that fetch_webpage_title includes div data extraction."""
+    html_content = '''
+    <html>
+    <head><title>Test Page</title>
+    <meta name="description" content="Test description">
+    </head>
+    <body>
+    <p>This is the first paragraph.</p>
+    <div id="conteudo">
+        <div class="txtTopo">COMPANY FROM WEB</div>
+        <div class="text">CNPJ: 11.222.333/0001-44</div>
+    </div>
+    </body>
+    </html>
+    '''
+
+    with patch('main.requests.get') as mock_get:
+        mock_response = MagicMock()
+        mock_response.content = html_content
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = await main.fetch_webpage_title('https://example.com')
+
+        # Check that regular webpage info is included
+        assert '📄 Title: Test Page' in result
+        assert '📝 Description: Test description' in result
+        assert 'This is the first paragraph' in result
+
+        # Check that div data is also included
+        assert '🏢 Company: COMPANY FROM WEB' in result
+        assert '📋 CNPJ: 11.222.333/0001-44' in result

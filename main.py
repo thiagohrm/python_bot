@@ -59,13 +59,64 @@ async def fetch_webpage_title(url: str) -> str:
         first_p = soup.find('p')
         first_text = first_p.get_text(strip=True)[:200] if first_p else ''
 
-        return f"📄 Title: {title}\n\n📝 Description: {description}\n\n{first_text}"
+        # Try to extract structured div data
+        div_data = extract_div_data(str(soup))
+
+        # Build response
+        result = f"📄 Title: {title}\n\n📝 Description: {description}\n\n{first_text}"
+
+        # Add div data if found (not an error message)
+        if not div_data.startswith("❌"):
+            result += f"\n\n{div_data}"
+
+        return result
     except requests.exceptions.Timeout:
         return "❌ Error: Request timed out"
     except requests.exceptions.ConnectionError:
         return "❌ Error: Could not connect to the URL"
     except Exception as e:
         return f"❌ Error: {str(e)}"
+
+
+def extract_div_data(html_content: str, div_id: str = "conteudo") -> str:
+    """Extract structured data from specific div elements in HTML."""
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        target_div = soup.find('div', id=div_id)
+
+        if not target_div:
+            return "❌ Error: Target div not found"
+
+        # Extract company name (from txtTopo class)
+        company_div = target_div.find('div', class_='txtTopo')
+        company_name = company_div.get_text(strip=True) if company_div else 'N/A'
+
+        # Extract all text divs with class 'text'
+        text_divs = target_div.find_all('div', class_='text')
+        data_lines = []
+
+        for div in text_divs:
+            # Clean up text by normalizing whitespace
+            text = div.get_text()
+            # Replace multiple whitespace characters (including newlines) with single space
+            import re
+            text = re.sub(r'\s+', ' ', text).strip()
+            if text:
+                data_lines.append(text)
+
+        # Format the result
+        result = f"🏢 Company: {company_name}\n\n"
+        for i, line in enumerate(data_lines):
+            if 'CNPJ' in line:
+                result += f"📋 {line}\n"
+            elif 'AVENIDA' in line or 'RUA' in line or 'PRACA' in line:
+                result += f"📍 {line}\n"
+            else:
+                result += f"{line}\n"
+
+        return result
+    except Exception as e:
+        return f"❌ Error extracting div data: {str(e)}"
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
