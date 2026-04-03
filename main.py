@@ -18,9 +18,11 @@ TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 if not TOKEN:
     raise ValueError("Please set the TELEGRAM_BOT_TOKEN environment variable")
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     await update.message.reply_text('Hi! Send me an image with a QR code, and I\'ll try to decode it.')
+
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle photo messages."""
@@ -42,6 +44,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("No QR code found in the image.")
 
+
 def main():
     """Start the bot."""
     application = ApplicationBuilder().token(TOKEN).build()
@@ -52,6 +55,7 @@ def main():
 
     # Start the bot
     application.run_polling()
+
 
 if __name__ == '__main__':
     main()

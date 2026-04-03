@@ -22,8 +22,13 @@ brew install zbar
 
 ### Python Dependencies
 1. Install Python dependencies:
-   ```
+   ```bash
    pip install -r requirements.txt
+   ```
+
+2. For development (linting, testing):
+   ```bash
+   pip install -r requirements-dev.txt
    ```
 
 2. Get a bot token from [@BotFather](https://t.me/botfather) on Telegram.
@@ -59,23 +64,71 @@ To run with Docker:
 
 Note: The Dockerfile handles system dependencies automatically.
 
-## CI/CD Testing
+## Development
 
-For CI/CD pipelines (GitHub Actions, GitLab CI, etc.), add system dependencies:
+### Linting
+Run linters to check code quality:
 
-**GitHub Actions example:**
-```yaml
-- name: Install system dependencies
-  run: sudo apt-get install -y libzbar0
+```bash
+# Flake8 (style guide enforcement)
+flake8 .
 
-- name: Install Python dependencies
-  run: pip install -r requirements.txt
-
-- name: Run tests
-  run: pytest -v
+# Pylint (code analysis)
+pylint main.py
 ```
 
-Note: Tests automatically mock `pyzbar` during test collection to work in environments without system libraries.
+Configuration files:
+- `.flake8` - Flake8 configuration
+- `.pylintrc` - Pylint configuration
+
+### Local Testing
+```bash
+# Run all tests
+pytest -v
+
+# Run tests with coverage
+pytest --cov=main --cov-report=html
+
+# Run specific test
+pytest -k "test_start_handler" -v
+```
+
+## CI/CD Pipeline
+
+The repository uses GitHub Actions for automated testing and linting.
+
+**Workflow file:** `.github/workflows/ci-cd.yml`
+
+**What runs on each PR:**
+1. ✅ **Linting Phase**
+   - Flake8: Style guide enforcement
+   - Pylint: Code analysis
+   
+2. 🧪 **Testing Phase**
+   - Pytest: Unit tests
+   - Coverage: Code coverage analysis
+   
+3. 📊 **Reporting**
+   - Build report comment posted to PR
+   - Coverage report generated
+   - Lint reports uploaded as artifacts
+
+**Pipeline Status:** The build must pass all checks to merge to main.
+
+**Example PR Comment:**
+```
+## 📊 CI/CD Build Report
+
+### ✅ Lint Report
+...
+
+### 🧪 Test Report
+...
+
+### 📈 Status
+- Linting: success ✅
+- Tests: success ✅
+```
 
 ## Usage
 

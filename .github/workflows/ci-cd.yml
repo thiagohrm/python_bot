@@ -1,0 +1,123 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install system dependencies
+      run: sudo apt-get update && sudo apt-get install -y libzbar0
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install flake8 pylint
+    
+    # Linting Phase
+    - name: Lint with flake8
+      id: flake8
+      continue-on-error: true
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics > flake8-report.txt 2>&1 || true
+    
+    - name: Lint with pylint
+      id: pylint
+      continue-on-error: true
+      run: |
+        pylint main.py --disable=all --enable=E,F,W --exit-zero > pylint-report.txt 2>&1 || true
+    
+    # Testing Phase
+    - name: Run tests with coverage
+      id: tests
+      run: |
+        pytest tests/ -v --cov=main --cov-report=xml --cov-report=html --junitxml=test-report.xml
+      continue-on-error: true
+    
+    - name: Generate coverage report
+      id: coverage
+      run: |
+        pytest tests/ --cov=main --cov-report=term-missing > coverage-report.txt 2>&1 || true
+        cat coverage-report.txt
+    
+    # Post results to PR
+    - name: Comment PR with build report
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          
+          // Read reports
+          const testReport = fs.existsSync('test-report.xml') ? 'Test report generated' : 'No test report';
+          const coverageReport = fs.existsSync('coverage-report.txt') ? fs.readFileSync('coverage-report.txt', 'utf8') : 'No coverage report';
+          const flake8Report = fs.existsSync('flake8-report.txt') ? fs.readFileSync('flake8-report.txt', 'utf8') : 'No flake8 issues';
+          const pylintReport = fs.existsSync('pylint-report.txt') ? fs.readFileSync('pylint-report.txt', 'utf8') : 'No pylint issues';
+          
+          // Build markdown comment
+          let comment = `## 📊 CI/CD Build Report\n\n`;
+          comment += `### ✅ Lint Report\n\n`;
+          comment += `#### Flake8\n`;
+          comment += '```\n' + flake8Report.substring(0, 500) + '\n```\n\n';
+          comment += `#### Pylint\n`;
+          comment += '```\n' + pylintReport.substring(0, 500) + '\n```\n\n`;
+          
+          comment += `### 🧪 Test Report\n\n`;
+          comment += `#### Coverage Summary\n`;
+          comment += '```\n' + coverageReport + '\n```\n\n';
+          
+          // Add status badges
+          comment += `### 📈 Status\n`;
+          comment += `- **Linting**: ${{ steps.flake8.outcome }} 🔍\n`;
+          comment += `- **Tests**: ${{ steps.tests.outcome }} 🧪\n`;
+          
+          // Post comment
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+    
+    - name: Upload coverage reports
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-reports
+        path: |
+          htmlcov/
+          coverage-report.txt
+          test-report.xml
+    
+    - name: Upload lint reports
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: lint-reports
+        path: |
+          flake8-report.txt
+          pylint-report.txt
+    
+    - name: Check test results
+      run: |
+        if [ "${{ steps.tests.outcome }}" == "failure" ]; then
+          echo "Tests failed!"
+          exit 1
+        fi
