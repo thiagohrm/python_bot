@@ -1,45 +1,65 @@
 import os
 import pytest
 import requests
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # Set a dummy token for testing
 os.environ['TELEGRAM_BOT_TOKEN'] = 'dummy_token_for_testing'
 
 # Import modules from src
-from src.extraction.data_extraction import extract_div_data, extract_table_data, extract_total_data, extract_emission_info
+from src.extraction.data_extraction import (
+    extract_div_data,
+    extract_company_info,
+    extract_table_data,
+    extract_total_data,
+    extract_emission_info,
+)
 from src.extraction.data_processing import create_products_dataframe
-from src.scraping.web_scraping import is_url, fetch_webpage_title, fetch_webpage_title_from_html
-from src.bot.handlers import start, get_dataframe, handle_photo
+from src.scraping.web_scraping import is_url, is_sefaz_url, fetch_webpage_title, fetch_webpage_title_from_html
+from src.bot.handlers import start, help_command, last_scan, list_scans, detail_scan, handle_photo
+from src.data import store as data_store
 
 
 @pytest.mark.asyncio
 async def test_start_handler():
     """Test the /start command handler."""
-    # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
     mock_message.reply_text = AsyncMock()
     mock_update.message = mock_message
     mock_context = MagicMock()
 
-    # Call the handler
     await start(mock_update, mock_context)
 
-    # Verify the response
-    mock_message.reply_text.assert_called_once_with(
-        'Hi! Send me an image with a QR code, and I\'ll try to decode it.'
-    )
+    mock_message.reply_text.assert_called_once()
+    call_text = mock_message.reply_text.call_args[0][0]
+    assert '/help' in call_text
+
+
+@pytest.mark.asyncio
+async def test_help_command():
+    """Test the /help command lists all commands."""
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+    mock_context = MagicMock()
+
+    await help_command(mock_update, mock_context)
+
+    mock_message.reply_text.assert_called_once()
+    reply = mock_message.reply_text.call_args[0][0]
+    for cmd in ['/start', '/help', '/last', '/scans', '/detail']:
+        assert cmd in reply
 
 
 @pytest.mark.asyncio
 async def test_handle_photo_with_qr_code():
-    """Test photo handler when QR code is found."""
-    # Create a mock QR code object
+    """Test photo handler when QR code text (non-Sefaz) is found — returns 'No Sefaz link found'."""
     mock_qr_obj = MagicMock()
     mock_qr_obj.data = b"Hello World"
 
-    # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
     mock_message.reply_text = AsyncMock()
@@ -51,37 +71,25 @@ async def test_handle_photo_with_qr_code():
     mock_context.bot.get_file = AsyncMock(return_value=mock_file)
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
-    # Mock the image and decode function
     with patch('PIL.Image.open') as mock_image_open, \
-         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]) as mock_decode:
+         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]):
 
-        mock_image = MagicMock()
-        mock_image_open.return_value = mock_image
-
-        # Set up the photo list
+        mock_image_open.return_value = MagicMock()
         mock_update.message.photo = [mock_photo]
 
-        # Call the handler
         await handle_photo(mock_update, mock_context)
 
-        # Verify the calls
-        mock_context.bot.get_file.assert_called_once_with(mock_photo.file_id)
-        mock_file.download_as_bytearray.assert_called_once()
-        mock_image_open.assert_called_once()
-        mock_decode.assert_called_once_with(mock_image)
-        mock_message.reply_text.assert_called_once_with("QR Code found: Hello World")
+        mock_message.reply_text.assert_called_once_with("No Sefaz link found.")
 
 
 @pytest.mark.asyncio
 async def test_handle_photo_multiple_qr_codes():
-    """Test photo handler when multiple QR codes are found."""
-    # Create mock QR code objects
+    """Test photo handler processes only the first QR code."""
     mock_qr_obj1 = MagicMock()
     mock_qr_obj1.data = b"First QR"
     mock_qr_obj2 = MagicMock()
     mock_qr_obj2.data = b"Second QR"
 
-    # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
     mock_message.reply_text = AsyncMock()
@@ -93,29 +101,21 @@ async def test_handle_photo_multiple_qr_codes():
     mock_context.bot.get_file = AsyncMock(return_value=mock_file)
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
-    # Mock the image and decode function
     with patch('PIL.Image.open') as mock_image_open, \
-         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj1, mock_qr_obj2]) as mock_decode:
+         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj1, mock_qr_obj2]):
 
-        mock_image = MagicMock()
-        mock_image_open.return_value = mock_image
-
-        # Set up the photo list
+        mock_image_open.return_value = MagicMock()
         mock_update.message.photo = [mock_photo]
 
-        # Call the handler
         await handle_photo(mock_update, mock_context)
 
-        # Verify the calls
-        assert mock_message.reply_text.call_count == 2
-        mock_message.reply_text.assert_any_call("QR Code found: First QR")
-        mock_message.reply_text.assert_any_call("QR Code found: Second QR")
+        # Only one reply because only first QR is processed and it's not a Sefaz URL
+        mock_message.reply_text.assert_called_once_with("No Sefaz link found.")
 
 
 @pytest.mark.asyncio
 async def test_handle_photo_no_qr_code():
     """Test photo handler when no QR code is found."""
-    # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
     mock_message.reply_text = AsyncMock()
@@ -127,33 +127,25 @@ async def test_handle_photo_no_qr_code():
     mock_context.bot.get_file = AsyncMock(return_value=mock_file)
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
-    # Mock the image and decode function (no QR codes found)
     with patch('PIL.Image.open') as mock_image_open, \
-         patch('pyzbar.pyzbar.decode', return_value=[]) as mock_decode:
+         patch('pyzbar.pyzbar.decode', return_value=[]):
 
-        mock_image = MagicMock()
-        mock_image_open.return_value = mock_image
-
-        # Set up the photo list
+        mock_image_open.return_value = MagicMock()
         mock_update.message.photo = [mock_photo]
 
-        # Call the handler
         await handle_photo(mock_update, mock_context)
 
-        # Verify the response
-        mock_message.reply_text.assert_called_once_with("No QR code found in the image.")
+        mock_message.reply_text.assert_called_once_with("No QR Code Found.")
 
 
 @pytest.mark.asyncio
 async def test_handle_photo_uses_highest_resolution():
     """Test that the handler uses the highest resolution photo."""
-    # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
     mock_message.reply_text = AsyncMock()
     mock_update.message = mock_message
 
-    # Create multiple photos (different resolutions)
     mock_photo_low = MagicMock()
     mock_photo_high = MagicMock()
     mock_file = AsyncMock()
@@ -237,12 +229,10 @@ async def test_fetch_webpage_title_connection_error():
 
 @pytest.mark.asyncio
 async def test_handle_photo_with_url_in_qr():
-    """Test photo handler when QR code contains a URL."""
-    # Create a mock QR code object with URL
+    """Test photo handler when QR code contains a non-Sefaz URL — returns 'No Sefaz link found'."""
     mock_qr_obj = MagicMock()
     mock_qr_obj.data = b"https://example.com"
 
-    # Mock the update and context
     mock_update = MagicMock()
     mock_message = MagicMock()
     mock_message.reply_text = AsyncMock()
@@ -254,31 +244,254 @@ async def test_handle_photo_with_url_in_qr():
     mock_context.bot.get_file = AsyncMock(return_value=mock_file)
     mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
 
-    # Mock the image, decode, requests, and fetch functions
     with patch('PIL.Image.open') as mock_image_open, \
-         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]) as mock_decode, \
-         patch('src.scraping.web_scraping.requests.get') as mock_requests_get, \
-         patch('src.scraping.web_scraping.fetch_webpage_title_from_html', return_value='📄 Title: Test') as mock_fetch:
+         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]):
 
-        mock_image = MagicMock()
-        mock_image_open.return_value = mock_image
-
-        # Mock the response
-        mock_response = MagicMock()
-        mock_response.content = b'<html><body>Test</body></html>'
-        mock_response.raise_for_status = MagicMock()
-        mock_requests_get.return_value = mock_response
-
-        # Set up the photo list
+        mock_image_open.return_value = MagicMock()
         mock_update.message.photo = [mock_photo]
 
-        # Call the handler
         await handle_photo(mock_update, mock_context)
 
-        # Verify the calls
-        assert mock_message.reply_text.call_count >= 1
-        calls = mock_message.reply_text.call_args_list
-        assert any('https://example.com' in str(call) for call in calls)
+        mock_message.reply_text.assert_called_once_with("No Sefaz link found.")
+
+
+@pytest.mark.asyncio
+async def test_handle_photo_sefaz_success():
+    """Test full success path with a valid Sefaz URL QR code."""
+    mock_qr_obj = MagicMock()
+    mock_qr_obj.data = b"https://nfce.fazenda.sp.gov.br/NFCeConsultaPublica?chNFe=123"
+
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+
+    mock_photo = MagicMock()
+    mock_file = AsyncMock()
+    mock_context = MagicMock()
+    mock_context.bot.get_file = AsyncMock(return_value=mock_file)
+    mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
+
+    mock_response = MagicMock()
+    mock_response.content = b'<html><body></body></html>'
+    mock_response.raise_for_status = MagicMock()
+
+    with patch('PIL.Image.open') as mock_image_open, \
+         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]), \
+         patch('src.bot.handlers.requests.get', return_value=mock_response), \
+         patch('src.bot.handlers.extract_company_info', return_value={'company_name': 'ACME', 'cnpj': '12.345.678/0001-90'}), \
+         patch('src.bot.handlers.extract_table_data', return_value=[{'Produto': 'Item', 'Qtde': 1, 'Vl_Total': 5.0}]), \
+         patch('src.bot.handlers.extract_total_data', return_value={'total_items': 1, 'amount_paid': 5.0, 'payment_method': 'PIX'}), \
+         patch('src.bot.handlers.extract_emission_info', return_value={'emission_date': '01/01/2026 10:00:00', 'access_key': '35260312495021000104650010000020351469425812'}), \
+         patch('src.bot.handlers.next_scan_id', return_value=42), \
+         patch('src.bot.handlers.save_scan_to_csv') as mock_csv, \
+         patch('src.bot.handlers.save_scan_to_json') as mock_json:
+
+        mock_image_open.return_value = MagicMock()
+        mock_update.message.photo = [mock_photo]
+
+        await handle_photo(mock_update, mock_context)
+
+        mock_csv.assert_called_once()
+        # Verify ID and access key are passed to CSV
+        csv_call_args = mock_csv.call_args[0]
+        assert csv_call_args[0] == 42  # scan_id
+        assert csv_call_args[6] == '35260312495021000104650010000020351469425812'  # access_key
+        mock_json.assert_called_once()
+        saved_payload = mock_json.call_args[0][0]
+        assert saved_payload['id'] == 42
+        assert saved_payload['access_key'] == '35260312495021000104650010000020351469425812'
+        mock_message.reply_text.assert_called_once()
+        reply_text = mock_message.reply_text.call_args[0][0]
+        assert 'Receipt scanned successfully' in reply_text
+        assert 'ACME' in reply_text
+        assert 'PIX' in reply_text
+
+
+@pytest.mark.asyncio
+async def test_handle_photo_sefaz_site_down():
+    """Test photo handler when Sefaz site is unreachable."""
+    mock_qr_obj = MagicMock()
+    mock_qr_obj.data = b"https://nfce.fazenda.sp.gov.br/consulta"
+
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+
+    mock_photo = MagicMock()
+    mock_file = AsyncMock()
+    mock_context = MagicMock()
+    mock_context.bot.get_file = AsyncMock(return_value=mock_file)
+    mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
+
+    with patch('PIL.Image.open') as mock_image_open, \
+         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]), \
+         patch('src.bot.handlers.requests.get', side_effect=requests.exceptions.ConnectionError()):
+
+        mock_image_open.return_value = MagicMock()
+        mock_update.message.photo = [mock_photo]
+
+        await handle_photo(mock_update, mock_context)
+
+        mock_message.reply_text.assert_called_once_with("Sefaz site is down.")
+
+
+@pytest.mark.asyncio
+async def test_handle_photo_data_bad_formatted():
+    """Test photo handler when extraction yields no usable data."""
+    mock_qr_obj = MagicMock()
+    mock_qr_obj.data = b"https://nfce.fazenda.sp.gov.br/consulta"
+
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+
+    mock_photo = MagicMock()
+    mock_file = AsyncMock()
+    mock_context = MagicMock()
+    mock_context.bot.get_file = AsyncMock(return_value=mock_file)
+    mock_file.download_as_bytearray = AsyncMock(return_value=b"fake_image_data")
+
+    mock_response = MagicMock()
+    mock_response.content = b'<html><body></body></html>'
+    mock_response.raise_for_status = MagicMock()
+
+    with patch('PIL.Image.open') as mock_image_open, \
+         patch('pyzbar.pyzbar.decode', return_value=[mock_qr_obj]), \
+         patch('src.bot.handlers.requests.get', return_value=mock_response), \
+         patch('src.bot.handlers.extract_company_info', return_value={'company_name': '', 'cnpj': ''}), \
+         patch('src.bot.handlers.extract_table_data', return_value=[]), \
+         patch('src.bot.handlers.extract_total_data', return_value={}), \
+         patch('src.bot.handlers.extract_emission_info', return_value={}):
+
+        mock_image_open.return_value = MagicMock()
+        mock_update.message.photo = [mock_photo]
+
+        await handle_photo(mock_update, mock_context)
+
+        mock_message.reply_text.assert_called_once_with("Data bad formatted.")
+
+
+def test_is_sefaz_url_valid():
+    """Test that Sefaz portal URLs are correctly identified."""
+    valid_sefaz_urls = [
+        'https://nfce.fazenda.sp.gov.br/NFCeConsultaPublica',
+        'http://www.sefaz.ba.gov.br/nfe',
+        'https://www.nfce.fazenda.pr.gov.br/nfce/consulta',
+    ]
+    for url in valid_sefaz_urls:
+        assert is_sefaz_url(url) is True
+
+
+def test_is_sefaz_url_invalid():
+    """Test that non-Sefaz URLs are rejected."""
+    non_sefaz_urls = [
+        'https://www.example.com',
+        'https://google.com',
+        'https://github.com',
+        '',
+    ]
+    for url in non_sefaz_urls:
+        assert is_sefaz_url(url) is False
+
+
+def test_extract_company_info_success():
+    """Test extracting company name and CNPJ from HTML."""
+    html_content = '''
+    <div id="conteudo">
+        <div class="txtTopo">ACME SUPERMERCADO LTDA</div>
+        <div class="text">CNPJ: 12.345.678/0001-90 Inscrição Estadual: 111222333444</div>
+    </div>
+    '''
+    result = extract_company_info(html_content)
+    assert result['company_name'] == 'ACME SUPERMERCADO LTDA'
+    assert result['cnpj'] == '12.345.678/0001-90'
+
+
+def test_extract_company_info_missing_div():
+    """Test extract_company_info when div is not found."""
+    result = extract_company_info('<div id="other">nothing</div>')
+    assert result == {'company_name': '', 'cnpj': ''}
+
+
+@pytest.mark.asyncio
+async def test_last_scan_no_data():
+    """Test /last when no scans have been recorded."""
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+    mock_context = MagicMock()
+
+    with patch('src.bot.handlers.get_last_scan_from_csv', return_value=None):
+        await last_scan(mock_update, mock_context)
+
+    mock_message.reply_text.assert_called_once()
+    assert 'No scans recorded' in mock_message.reply_text.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_last_scan_with_data():
+    """Test /last returns formatted receipt data."""
+    mock_row = {
+        'Date': '01/04/2026 10:00:00',
+        'Company Name': 'ACME STORE',
+        'CNPJ': '12.345.678/0001-90',
+        'Amount Paid': '49.90',
+        'Payment Method': 'PIX',
+    }
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+    mock_context = MagicMock()
+
+    with patch('src.bot.handlers.get_last_scan_from_csv', return_value=mock_row):
+        await last_scan(mock_update, mock_context)
+
+    reply = mock_message.reply_text.call_args[0][0]
+    assert 'ACME STORE' in reply
+    assert '12.345.678/0001-90' in reply
+    assert 'PIX' in reply
+
+
+def test_get_last_scan_from_headerless_csv(tmp_path):
+    """Test reading the last row from a legacy CSV file without headers."""
+    csv_file = tmp_path / 'scans.csv'
+    csv_file.write_text(
+        '27/03/2026 13:08:49,MATEUS DE CAMPOS PORTO FELIZ - ME,12.495.021/0001-04,67.04,Cartão de Crédito\n'
+        '29/03/2026 11:09:00,GERALDO BENEDETE COMPANHIA LTDA,45.477.452/0001-05,5.79,Cartão de Crédito\n',
+        encoding='utf-8',
+    )
+
+    with patch.object(data_store, 'CSV_FILE', csv_file):
+        row = data_store.get_last_scan_from_csv()
+
+    assert row is not None
+    assert row['Date'] == '29/03/2026 11:09:00'
+    assert row['Company Name'] == 'GERALDO BENEDETE COMPANHIA LTDA'
+    assert row['CNPJ'] == '45.477.452/0001-05'
+    assert row['Amount Paid'] == '5.79'
+    assert row['Payment Method'] == 'Cartão de Crédito'
+
+
+def test_get_all_scans_from_headerless_csv(tmp_path):
+    """Test reading all rows from a legacy CSV file without headers."""
+    csv_file = tmp_path / 'scans.csv'
+    csv_file.write_text(
+        '27/03/2026 13:08:49,MATEUS DE CAMPOS PORTO FELIZ - ME,12.495.021/0001-04,67.04,Cartão de Crédito\n'
+        '29/03/2026 11:09:00,GERALDO BENEDETE COMPANHIA LTDA,45.477.452/0001-05,5.79,Cartão de Crédito\n',
+        encoding='utf-8',
+    )
+
+    with patch.object(data_store, 'CSV_FILE', csv_file):
+        rows = data_store.get_all_scans_from_csv()
+
+    assert len(rows) == 2
+    assert rows[0]['Company Name'] == 'MATEUS DE CAMPOS PORTO FELIZ - ME'
+    assert rows[1]['Company Name'] == 'GERALDO BENEDETE COMPANHIA LTDA'
 
 
 def test_extract_div_data_success():
@@ -489,7 +702,8 @@ def test_extract_emission_info_success():
               Versão XML:
               4.00
               - Versão XSLT: 2.05
-            </strong></li>
+                        </strong>
+                        <br><span class="chave">3526 0312 4950 2100 0104 6500 1000 0020 3514 6942 5812</span></li>
         </ul>
       </div>
     </div>
@@ -498,6 +712,7 @@ def test_extract_emission_info_success():
     assert result['emission_date'] == '29/03/2026 11:09:00'
     assert result['authorization_protocol'] == '135262105954781'
     assert result['environment'] == 'Produção'
+    assert result['access_key'] == '35260312495021000104650010000020351469425812'
 
 
 def test_extract_emission_info_no_div():
@@ -505,3 +720,151 @@ def test_extract_emission_info_no_div():
     html_content = '<div id="other"><p>Test</p></div>'
     result = extract_emission_info(html_content)
     assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_list_scans_no_data():
+    """Test /scans when no records exist."""
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+    mock_context = MagicMock()
+
+    with patch('src.bot.handlers.get_all_scans_from_csv', return_value=[]):
+        await list_scans(mock_update, mock_context)
+
+    mock_message.reply_text.assert_called_once()
+    assert 'No scans recorded' in mock_message.reply_text.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_list_scans_with_data():
+    """Test /scans returns a monospace table with all rows."""
+    mock_rows = [
+        {'ID': '1', 'Date': '01/04/2026 10:00:00', 'Company Name': 'ACME STORE', 'CNPJ': '12.345.678/0001-90', 'Amount Paid': '49.90', 'Payment Method': 'PIX', 'Access Key': ''},
+        {'ID': '2', 'Date': '02/04/2026 15:30:00', 'Company Name': 'BETA MARKET', 'CNPJ': '98.765.432/0001-11', 'Amount Paid': '120.50', 'Payment Method': 'Cartão', 'Access Key': ''},
+    ]
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+    mock_context = MagicMock()
+
+    with patch('src.bot.handlers.get_all_scans_from_csv', return_value=mock_rows):
+        await list_scans(mock_update, mock_context)
+
+    mock_message.reply_text.assert_called_once()
+    reply = mock_message.reply_text.call_args[0][0]
+    assert 'ACME STORE' in reply
+    assert 'BETA MARKET' in reply
+    assert '49.90' in reply
+    assert '120.50' in reply
+    assert 'PIX' in reply
+
+
+@pytest.mark.asyncio
+async def test_detail_scan_no_args():
+    """Test /detail with no arguments returns usage hint."""
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+    mock_context = MagicMock()
+    mock_context.args = []
+
+    await detail_scan(mock_update, mock_context)
+
+    reply = mock_message.reply_text.call_args[0][0]
+    assert 'Usage' in reply
+
+
+@pytest.mark.asyncio
+async def test_detail_scan_not_found():
+    """Test /detail when ID does not exist in JSON."""
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+    mock_context = MagicMock()
+    mock_context.args = ['99']
+
+    with patch('src.bot.handlers.get_scan_detail_from_json', return_value=None):
+        await detail_scan(mock_update, mock_context)
+
+    reply = mock_message.reply_text.call_args[0][0]
+    assert 'No scan found' in reply
+
+
+@pytest.mark.asyncio
+async def test_detail_scan_found():
+    """Test /detail returns formatted scan detail."""
+    mock_record = {
+        'id': 3,
+        'emission_date': '01/04/2026 10:00:00',
+        'company_name': 'ACME STORE',
+        'cnpj': '12.345.678/0001-90',
+        'access_key': '35260312495021000104650010000020351469425812',
+        'amount_paid': 49.90,
+        'payment_method': 'PIX',
+        'total_items': 2,
+        'items': [
+            {'Produto': 'LEITE', 'Código': '111', 'Qtde': 1, 'UN': 'UN', 'Vl_Unit': 5.0, 'Vl_Total': 5.0},
+            {'Produto': 'PÃO', 'Código': '222', 'Qtde': 2, 'UN': 'UN', 'Vl_Unit': 3.0, 'Vl_Total': 6.0},
+        ],
+    }
+    mock_update = MagicMock()
+    mock_message = MagicMock()
+    mock_message.reply_text = AsyncMock()
+    mock_update.message = mock_message
+    mock_context = MagicMock()
+    mock_context.args = ['3']
+
+    with patch('src.bot.handlers.get_scan_detail_from_json', return_value=mock_record):
+        await detail_scan(mock_update, mock_context)
+
+    reply = mock_message.reply_text.call_args[0][0]
+    assert 'Scan #3' in reply
+    assert 'ACME STORE' in reply
+    assert '35260312495021000104650010000020351469425812' in reply
+    assert 'LEITE' in reply
+    assert 'PIX' in reply
+
+
+def test_save_and_retrieve_scan_id(tmp_path):
+    """Test that scan ID is persisted in CSV and retrieved as expected."""
+    csv_file = tmp_path / 'scans.csv'
+    json_file = tmp_path / 'scans.json'
+
+    with patch.object(data_store, 'CSV_FILE', csv_file), \
+         patch.object(data_store, 'JSON_FILE', json_file):
+
+        assert data_store.next_scan_id() == 1
+        data_store.save_scan_to_csv(1, '01/04/2026 10:00:00', 'ACME', '12.345.678/0001-90', 49.90, 'PIX', 'ABC123')
+        assert data_store.next_scan_id() == 2
+        data_store.save_scan_to_csv(2, '02/04/2026 11:00:00', 'BETA', '98.765.432/0001-11', 12.00, 'Dinheiro', 'DEF456')
+        assert data_store.next_scan_id() == 3
+
+        rows = data_store.get_all_scans_from_csv()
+        assert len(rows) == 2
+        assert rows[0]['ID'] == '1'
+        assert rows[0]['Access Key'] == 'ABC123'
+        assert rows[1]['ID'] == '2'
+
+
+def test_get_scan_detail_from_json(tmp_path):
+    """Test retrieving a scan record from JSON by ID."""
+    json_file = tmp_path / 'scans.json'
+    records = [
+        {'id': 1, 'company_name': 'ACME', 'amount_paid': 10.0, 'items': []},
+        {'id': 2, 'company_name': 'BETA', 'amount_paid': 20.0, 'items': []},
+    ]
+    json_file.write_text(__import__('json').dumps(records), encoding='utf-8')
+
+    with patch.object(data_store, 'JSON_FILE', json_file):
+        result = data_store.get_scan_detail_from_json(2)
+        assert result is not None
+        assert result['company_name'] == 'BETA'
+
+        missing = data_store.get_scan_detail_from_json(99)
+        assert missing is None
