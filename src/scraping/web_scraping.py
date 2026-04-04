@@ -20,6 +20,15 @@ def is_url(text: str) -> bool:
         return False
 
 
+def is_sefaz_url(url: str) -> bool:
+    """Check if a URL belongs to a Sefaz / NFC-e portal."""
+    try:
+        host = urlparse(url).netloc.lower()
+        return any(kw in host for kw in ('sefaz', 'nfe', 'nfce', 'fazenda'))
+    except Exception:
+        return False
+
+
 async def fetch_webpage_title(url: str) -> str:
     """Fetch and extract the title from a webpage."""
     try:

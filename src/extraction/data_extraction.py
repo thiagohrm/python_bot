@@ -9,6 +9,30 @@ from typing import List, Dict, Any
 from src.config import DEFAULT_DIV_ID, DEFAULT_TABLE_ID
 
 
+def extract_company_info(html_content: str, div_id: str = DEFAULT_DIV_ID) -> Dict[str, str]:
+    """Extract company name and CNPJ from HTML, returned as a plain dict."""
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        target_div = soup.find('div', id=div_id)
+        result: Dict[str, str] = {'company_name': '', 'cnpj': ''}
+        if not target_div:
+            return result
+        company_div = target_div.find('div', class_='txtTopo')
+        if company_div:
+            result['company_name'] = company_div.get_text(strip=True)
+        text_divs = target_div.find_all('div', class_='text')
+        for div in text_divs:
+            text = re.sub(r'\s+', ' ', div.get_text()).strip()
+            if 'CNPJ' in text:
+                cnpj_match = re.search(r'CNPJ:\s*([\d./-]+)', text)
+                if cnpj_match:
+                    result['cnpj'] = cnpj_match.group(1).strip()
+                break
+        return result
+    except Exception:
+        return {'company_name': '', 'cnpj': ''}
+
+
 def extract_div_data(html_content: str, div_id: str = DEFAULT_DIV_ID) -> str:
     """Extract structured data from specific div elements in HTML."""
     try:
@@ -217,6 +241,12 @@ def extract_emission_info(html_content: str, div_id: str = "infos") -> Dict[str,
             protocol_match = re.search(r'Protocolo de Autorização:\s*(\d+)', text_content)
             if protocol_match:
                 info['authorization_protocol'] = protocol_match.group(1).strip()
+
+            access_key_span = infos_div.find('span', class_='chave')
+            if access_key_span:
+                access_key = re.sub(r'\s+', '', access_key_span.get_text(strip=True))
+                if access_key:
+                    info['access_key'] = access_key
 
             # Extract environment
             if 'Ambiente de Produção' in text_content:

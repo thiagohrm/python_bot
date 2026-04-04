@@ -5,15 +5,18 @@ A modular Telegram bot that decodes QR codes from images and extracts structured
 ## Features
 
 - QR code detection from Telegram image uploads
-- URL detection and webpage fetch
+- NFC-e URL validation (Sefaz/SEFAZ hostnames)
 - HTML data extraction:
-  - company/details block extraction
-  - table/products extraction
+  - company name and CNPJ
+  - product table extraction
   - payment summary extraction
-  - emission/protocol extraction
-- Product DataFrame generation and Telegram-friendly formatting
-- Modular codebase under src for maintainability
-- Automated tests with pytest
+  - emission/protocol info and access key (chave de acesso)
+- Persistent data storage:
+  - `data/scans.csv` — summary index (ID, Date, Company, CNPJ, Amount, Method, Access Key)
+  - `data/scans.json` — full scan records including all line items
+- Bot commands: `/help`, `/last`, `/scans`, `/detail <id>`
+- Modular codebase under `src/` for maintainability
+- Automated tests with pytest (43 tests)
 
 ## Project Structure
 
@@ -26,6 +29,9 @@ python_bot/
 |   |-- bot/
 |   |   |-- __init__.py
 |   |   `-- handlers.py
+|   |-- data/
+|   |   |-- __init__.py
+|   |   `-- store.py
 |   |-- extraction/
 |   |   |-- __init__.py
 |   |   |-- data_extraction.py
@@ -33,6 +39,9 @@ python_bot/
 |   `-- scraping/
 |       |-- __init__.py
 |       `-- web_scraping.py
+|-- data/
+|   |-- scans.csv
+|   `-- scans.json
 |-- tests/
 |   `-- test_main.py
 |-- main.py
@@ -45,13 +54,31 @@ python_bot/
 
 ## Architecture
 
-- src/config.py: constants, logger, and environment token lookup
-- src/bot/handlers.py: Telegram command/photo handlers
-- src/scraping/web_scraping.py: URL validation + webpage parsing workflow
-- src/extraction/data_extraction.py: HTML parsing helpers for div/table/total/emission
-- src/extraction/data_processing.py: DataFrame creation and formatting
-- src/main.py: bot bootstrap and handler registration
-- main.py: lightweight compatibility entrypoint that delegates to src.main
+- `src/config.py`: constants, logger, and environment token lookup
+- `src/bot/handlers.py`: Telegram command/photo handlers (`/start`, `/help`, `/last`, `/scans`, `/detail`)
+- `src/data/store.py`: CSV and JSON read/write logic, scan ID generation, detail lookup
+- `src/scraping/web_scraping.py`: Sefaz URL validation (`is_sefaz_url`) + webpage fetch
+- `src/extraction/data_extraction.py`: HTML parsing for company info, table, totals, emission, and access key
+- `src/extraction/data_processing.py`: product table formatting
+- `src/main.py`: bot bootstrap and handler registration
+- `main.py`: lightweight compatibility entrypoint that delegates to `src.main`
+
+## Bot Commands
+
+| Command | Description |
+|---|---|
+| `/start` | Welcome message, points to `/help` |
+| `/help` | Lists all available commands |
+| `/last` | Shows the last scanned NFC-e summary from CSV |
+| `/scans` | Lists all scans as a formatted table |
+| `/detail <id>` | Shows the full receipt for the given scan ID (items, totals, dates) |
+
+Send a photo containing an NFC-e QR code to trigger a scan. The bot replies with a one-line summary on success or one of the following errors:
+
+- `No QR Code Found.`
+- `No Sefaz link found.`
+- `Sefaz site is down.`
+- `Data bad formatted.`
 
 ## Setup
 
@@ -144,13 +171,14 @@ With coverage:
 pytest --cov --cov-report=term-missing
 ```
 
-## Import Examples (new structure)
+## Import Examples
 
 ```python
-from src.extraction.data_extraction import extract_div_data, extract_table_data
+from src.extraction.data_extraction import extract_div_data, extract_table_data, extract_company_info, extract_emission_info
 from src.extraction.data_processing import create_products_dataframe
-from src.scraping.web_scraping import is_url, fetch_webpage_title
-from src.bot.handlers import handle_photo
+from src.scraping.web_scraping import is_sefaz_url, fetch_webpage
+from src.data.store import save_scan_to_csv, save_scan_to_json, get_last_scan_from_csv, get_all_scans_from_csv, get_scan_detail_from_json, next_scan_id
+from src.bot.handlers import handle_photo, last_scan, list_scans, detail_scan
 ```
 
 ## Troubleshooting

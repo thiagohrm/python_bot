@@ -4,12 +4,18 @@ Telegram bot handlers module
 
 from src.bot.handlers import (
     start,
-    get_dataframe,
+    help_command,
+    last_scan,
+    list_scans,
+    detail_scan,
     handle_photo
 )
 
 __all__ = [
     'start',
-    'get_dataframe',
+    'help_command',
+    'last_scan',
+    'list_scans',
+    'detail_scan',
     'handle_photo'
 ]
